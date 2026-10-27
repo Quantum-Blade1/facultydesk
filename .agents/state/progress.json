@@ -303,7 +303,7 @@
       "status": "done",
       "started_at": "2026-10-28T02:00:00+05:30",
       "finished_at": "2026-10-28T02:52:00+05:30",
-      "commit": null,
+      "commit": "1699686",
       "tasks": [
         "docker-compose.prod.yml: multi-stage non-root images (appuser:10001, nextjs:10001), standalone Next.js with internal API proxy, Caddy HTTPS with auto TLS, resource limits, healthchecks, MinIO bucket provisioner",
         "Documented College-LAN mode for departmental server deployment with Caddy internal TLS (tls internal) and root CA trust instructions in docs/PROJECT.md",
