@@ -247,7 +247,7 @@
       "status": "done",
       "started_at": "2026-10-27T19:00:00+05:30",
       "finished_at": "2026-10-28T01:20:00+05:30",
-      "commit": null,
+      "commit": "a209b57",
       "tasks": [
         "OpenAPI spec generation and strict TypeScript typing via openapi-typescript",
         "PWA Manifest (standalone) and Service Worker (sw.js) with push handler and offline fallback",
