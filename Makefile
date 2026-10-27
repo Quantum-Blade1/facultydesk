@@ -20,8 +20,9 @@ lint:
 	cd frontend && pnpm lint
 
 typecheck:
+	cd backend && uv run python -c "from app.main import app; import json; open('../openapi.json', 'w').write(json.dumps(app.openapi(), indent=2))"
 	cd backend && uv run mypy --strict app tests
-	cd frontend && pnpm typecheck
+	cd frontend && pnpm gen:api && pnpm typecheck
 
 test:
 	cd backend && uv run pytest

@@ -1,0 +1,16 @@
+{
+  "name": "FacultyDesk",
+  "short_name": "FacultyDesk",
+  "description": "Smart academic scheduling, reminder and documentation task platform for college faculty",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

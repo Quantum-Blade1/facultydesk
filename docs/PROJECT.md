@@ -57,6 +57,10 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Automatic calendar synchronization establishing `DEADLINE` events (`EventKind.DEADLINE`) for every task, linked to task lifecycle.
 - Full task lifecycle management: Completion automatically cancels all pending alerts, while reopening reactivates alerts for future deadlines.
 - HOD dashboard analytics calculating assignment completion rates ($\frac{N_{\text{completed}}}{N_{\text{total}}} \times 100\%$) and per-faculty overdue counts.
+- Installable Progressive Web App (PWA) with standard manifest (`standalone` display, theme `#1e3a8a`, background `#f8fafc`) and custom service worker (`sw.js`) with offline caching, push notifications, and deep links.
+- Responsive mobile-first AppShell layout featuring a collapsible desktop sidebar and sticky bottom navigation bar supporting mobile viewports down to 360px.
+- End-to-end typed API client mapped to OpenAPI 3.1 contracts via `openapi-typescript` generation, with silent refresh rotation and access token storage in-memory.
+- Full suite of frontend screens: `/today` (countdown & timeline), `/calendar` (day/week/list + clash overrides + free-slots modal), `/timetables` (drag & drop ingestion + issue audit), `/circulars` (camera capture + confidence review queue), `/tasks` (priority score ranking + HOD cohort assignment), `/settings` (WebPush, quiet hours, ICS feed token), `/directory` (roster, term & holiday setup), and `/login` (quick switcher for Admin, HOD, and Faculty).
 - Docker Compose development and production environments with health checks on all services including Mailpit SMTP testing server.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 

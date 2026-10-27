@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 from app.core.clock import Clock, SystemClock
 from app.core.config import get_settings
@@ -23,7 +23,7 @@ def hash_password(password: str) -> str:
 def verify_password(hash_value: str, password: str) -> bool:
     try:
         return _hasher.verify(hash_value, password)
-    except VerifyMismatchError:
+    except (VerifyMismatchError, InvalidHashError):
         return False
 
 

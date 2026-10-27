@@ -430,6 +430,11 @@ class FacultyProfileRepositoryImpl(FacultyProfileRepository):
         result = await self._session.execute(stmt)
         return [faculty_profile_to_domain(m) for m in result.scalars().all()]
 
+    async def list_all(self) -> list[FacultyProfile]:
+        stmt = select(FacultyProfileModel).order_by(FacultyProfileModel.full_name)
+        result = await self._session.execute(stmt)
+        return [faculty_profile_to_domain(m) for m in result.scalars().all()]
+
     async def get_by_ics_token(self, token: str) -> FacultyProfile | None:
         stmt = select(FacultyProfileModel).where(FacultyProfileModel.ics_token == token)
         result = await self._session.execute(stmt)
@@ -506,12 +511,22 @@ class AcademicTermRepositoryImpl(AcademicTermRepository):
         await self._session.flush()
         return academic_term_to_domain(model)
 
+    async def list_all(self) -> list[AcademicTerm]:
+        stmt = select(AcademicTermModel).order_by(AcademicTermModel.start_date.desc())
+        result = await self._session.execute(stmt)
+        return [academic_term_to_domain(m) for m in result.scalars().all()]
+
     async def list_holidays(self, term_id: UUID) -> list[Holiday]:
         stmt = (
             select(HolidayModel)
             .where(HolidayModel.academic_term_id == term_id)
             .order_by(HolidayModel.date)
         )
+        result = await self._session.execute(stmt)
+        return [holiday_to_domain(m) for m in result.scalars().all()]
+
+    async def list_all_holidays(self) -> list[Holiday]:
+        stmt = select(HolidayModel).order_by(HolidayModel.date)
         result = await self._session.execute(stmt)
         return [holiday_to_domain(m) for m in result.scalars().all()]
 

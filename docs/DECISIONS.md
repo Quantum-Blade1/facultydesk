@@ -346,4 +346,67 @@ flowchart TD
     TaskDB --> Dash
 ```
 
+- **Stage 09: Frontend Installable Web App (PWA)**
+  - What we built:
+    - Installable Next.js 16 App Router progressive web application with standard Web App Manifest (`standalone` display, theme `#1e3a8a`, background `#f8fafc`) and custom service worker (`sw.js`).
+    - Service worker offline cache strategy serving `/offline.html` fallback and handling background Web Push notifications with deep links (`notificationclick` targeting `/today`, `/calendar`, `/tasks`).
+    - Responsive mobile-first AppShell layout featuring a collapsible desktop sidebar and sticky bottom navigation bar supporting mobile viewports down to 360px.
+    - End-to-end typed API client mapped to OpenAPI 3.1 contracts via `openapi-typescript` generation, with silent refresh rotation and access token storage in-memory.
+    - Feature screens:
+      - `/today`: Live countdown ticker to next event, today's schedule timeline, and top 5 tasks ranked by Priority Score $P$.
+      - `/calendar`: Interactive schedule (day, week, list) with color-coded badges, clash collision alerts, manual event creation with clash override, and HOD common free-slot finder modal.
+      - `/timetables`: Timetable drag-and-drop file ingestion (XLSX, CSV, PDF), live status polling, unmapped token report preview, and one-click schedule materialisation confirmation.
+      - `/circulars`: Mobile camera capture / file upload interface with dual-PSM OCR confidence display and human review queue with side-by-side text/field editor.
+      - `/tasks`: Filterable documentation task table sorted descending by Priority Score $P$, personal task creator, HOD departmental bulk assigner, and real-time HOD completion analytics dashboard.
+      - `/settings`: Web Push notifications toggle with VAPID subscription registration, quiet hours time pickers, and one-click ICS feed subscription token rotation.
+      - `/directory`: Faculty roster table, departmental terms and holidays management, and bulk CSV import modal with validation preview.
+      - `/login`: Clean credential form with one-click test account quick switcher for Admin, HOD, and Faculty.
+  - Why this way:
+    - Generating types directly from FastAPI's OpenAPI specification (`openapi-typescript`) ensures 100% type safety and zero runtime schema drift between frontend forms and backend validation models.
+    - Keeping the access JWT purely in memory while storing the rotating refresh token in an `httpOnly`, `SameSite=Lax` cookie protects against XSS token exfiltration while supporting transparent silent token refresh.
+    - Responsive AppShell with sticky mobile bottom navigation guarantees faculty can conveniently view daily classes, capture circulars, and complete tasks directly from handheld devices.
+  - What we rejected and why:
+    - Heavy third-party UI component suites or bulky calendar libraries that bundle large CSS runtimes: rejected in favor of lightweight, bespoke Tailwind v4 tokens and shadcn/ui primitives.
+    - Next.js full client-side routing for public ICS calendar feeds: rejected because calendar subscriptions (Google Calendar, Apple Calendar, Outlook) require direct HTTP responses serving standard RFC 5545 `.ics` byte streams.
+    - Storing sensitive authentication tokens in browser `localStorage`: rejected due to cross-site scripting exposure; in-memory state with httpOnly cookie refresh fulfills strict security law.
+  - Risks and how they are contained:
+    - Service worker stale caching of API responses: contained by caching only static shell assets and offline fallback, bypassing cache for all dynamic `/api/*` network requests.
+    - Next.js prerender errors on dynamic authenticated screens: contained by wrapping client-only data loaders inside client components and routing root `/` via an instant server redirect to `/today`.
 
+```mermaid
+flowchart TD
+    subgraph Client["Next.js 16 App Router PWA"]
+        SW["Service Worker (sw.js)<br/>Push listener, Cache, Offline fallback"]
+        Shell["AppShell Layout<br/>Sidebar (Desktop) / Bottom Nav (Mobile 360px)"]
+        AuthCtx["Auth & Query Contexts<br/>Silent Refresh, Access Token In-Memory"]
+        
+        subgraph Screens["Responsive Screens"]
+            Today["/today: Countdown & Tasks Ranked by P"]
+            Cal["/calendar: Day/Week/List + Clash Overrides + Free-Slots"]
+            Tasks["/tasks: Priority Sorting + HOD Cohort Assignment"]
+            Circ["/circulars: Mobile Camera + OCR Review Queue"]
+            Sett["/settings: WebPush, Quiet Hours, ICS Feed Token"]
+            Dir["/directory: Faculty Roster, Term & Holiday Setup"]
+            TT["/timetables: Drag & Drop Ingestion + Issue Audit"]
+        end
+    end
+
+    subgraph API["FastAPI Backend Services"]
+        OpenAPI["OpenAPI 3.1 Contract<br/>Strict types via openapi-typescript"]
+        Endpoints["REST Routers<br/>Auth, Calendar, Tasks, Circulars, Reminders"]
+    end
+
+    subgraph Storage["Databases & Infrastructure"]
+        Postgres[("PostgreSQL 16")]
+        VAPID["VAPID WebPush Service"]
+        ICS["RFC 5545 Public Calendar Feed"]
+    end
+
+    SW --> Endpoints
+    Screens --> AuthCtx
+    AuthCtx --> OpenAPI
+    OpenAPI --> Endpoints
+    Endpoints --> Postgres
+    Endpoints --> VAPID
+    Endpoints --> ICS
+```

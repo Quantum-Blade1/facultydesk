@@ -15,6 +15,7 @@ from app.application.reminders.use_cases import (
     UpdateUserQuietHoursUseCase,
 )
 from app.application.security.policy import Principal
+from app.core.config import get_settings
 from app.core.errors import NotFoundError
 from app.domain.entities import PushSubscription, ReminderRule, ScheduledNotification
 from app.domain.repositories import UnitOfWork
@@ -214,3 +215,14 @@ async def get_upcoming_notifications(
         principal.user_id, limit=limit
     )
     return [ScheduledNotificationResponse.from_domain(n) for n in notifications]
+
+
+class VapidPublicKeyResponse(BaseModel):
+    public_key: str
+
+
+@router.get("/vapid-public-key", response_model=VapidPublicKeyResponse)
+async def get_vapid_public_key() -> VapidPublicKeyResponse:
+    """Retrieve the application VAPID public key for WebPush subscriptions."""
+    settings = get_settings()
+    return VapidPublicKeyResponse(public_key=settings.VAPID_PUBLIC_KEY)

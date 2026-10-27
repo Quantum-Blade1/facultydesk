@@ -141,6 +141,50 @@ async def list_department_faculty(
     ]
 
 
+@router.get("/faculty", response_model=list[FacultyProfileResponse])
+async def list_faculty(
+    department_id: UUID | None = None,
+    uow: UnitOfWork = Depends(get_uow),
+) -> list[FacultyProfileResponse]:
+    """List faculty profiles across the department or institution."""
+    async with uow:
+        if department_id is not None:
+            profiles = await uow.faculty_profiles.list_by_department(department_id)
+        else:
+            profiles = await uow.faculty_profiles.list_all()
+    return [
+        FacultyProfileResponse(
+            id=p.id,
+            user_id=p.user_id,
+            department_id=p.department_id,
+            full_name=p.full_name,
+            initials=p.initials.value,
+            aliases=list(p.aliases),
+            email=p.email,
+            phone=p.phone,
+        )
+        for p in profiles
+    ]
+
+
+@router.get("/holidays", response_model=list[HolidayResponse])
+async def list_all_holidays(
+    uow: UnitOfWork = Depends(get_uow),
+) -> list[HolidayResponse]:
+    """List all scheduled holidays across all active terms."""
+    async with uow:
+        all_holidays = await uow.academic_terms.list_all_holidays()
+    return [
+        HolidayResponse(
+            id=h.id,
+            academic_term_id=h.academic_term_id,
+            date=h.date,
+            label=h.label,
+        )
+        for h in sorted(all_holidays, key=lambda x: x.date)
+    ]
+
+
 @router.get("/faculty/{profile_id}", response_model=FacultyProfileResponse)
 async def get_faculty_profile(
     profile_id: UUID,

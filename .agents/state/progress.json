@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "09",
+  "current_stage": "10",
   "stages": [
     {
       "id": "01",
@@ -244,12 +244,30 @@
     {
       "id": "09",
       "file": "09-frontend-pwa.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
+      "status": "done",
+      "started_at": "2026-10-27T19:00:00+05:30",
+      "finished_at": "2026-10-28T01:20:00+05:30",
       "commit": null,
-      "tasks": [],
-      "evidence": []
+      "tasks": [
+        "OpenAPI spec generation and strict TypeScript typing via openapi-typescript",
+        "PWA Manifest (standalone) and Service Worker (sw.js) with push handler and offline fallback",
+        "Mobile-first AppShell layout with desktop sidebar and sticky bottom mobile navigation",
+        "AuthContext with silent token refresh, in-memory access token, and httpOnly cookie management",
+        "Implement /today dashboard with live event countdown ticker and priority score task summary",
+        "Implement /calendar with week/day/list views, clash indicators, and HOD free-slot finder",
+        "Implement /timetables drag-and-drop ingestion with validation report and confirmation modal",
+        "Implement /circulars review queue and camera capture with confidence score editor",
+        "Implement /tasks with Priority Score P ranking, personal creator, and HOD cohort assigner",
+        "Implement /settings with Web Push toggle, quiet hours picker, and ICS feed token rotation",
+        "Implement /directory faculty roster, term & holiday management, and bulk import modal",
+        "Implement /login credentials form with one-click seeded account switchers"
+      ],
+      "evidence": [
+        "make lint typecheck test -> ruff passed, frontend eslint passed (0 errors), mypy --strict passed (116 files, 0 errors), tsc --noEmit passed (0 errors), pytest passed (73/73 passed in 17.87s)",
+        "pnpm --prefix frontend run build -> Compiled successfully in 1556ms, prerendered static pages (12/12) without runtime errors",
+        "python3 verify_stage_09.py -> Manifest JSON standalone verified, sw.js push and notificationclick verified, all 8 routes HTTP 200, Faculty login (kks@facultydesk.local) verified, me endpoint verified, 22 events loaded, 5 tasks loaded, VAPID public key retrieved, ICS token rotated and 5145-byte .ics calendar feed downloaded, HOD login and dashboard verified (15 assigned tasks)",
+        "docs/diagrams/stage_09_decisions.png rendered via @mermaid-js/mermaid-cli and verified"
+      ]
     },
     {
       "id": "10",

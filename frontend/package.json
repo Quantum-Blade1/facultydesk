@@ -11,7 +11,8 @@
     "fmt": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "echo 'Frontend unit check' && exit 0",
-    "generate:api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/api-types.ts"
+    "generate:api": "openapi-typescript ../openapi.json -o src/lib/api-types.ts",
+    "gen:api": "openapi-typescript ../openapi.json -o src/lib/api-types.ts"
   },
   "dependencies": {
     "@fullcalendar/core": "^7.1.3",

@@ -79,6 +79,10 @@ class FacultyProfileRepository(ABC):
         """List all faculty profiles in a department."""
 
     @abstractmethod
+    async def list_all(self) -> list[FacultyProfile]:
+        """List all faculty profiles across departments."""
+
+    @abstractmethod
     async def get_by_ics_token(self, token: str) -> FacultyProfile | None:
         """Fetch faculty profile by unique ICS subscription token."""
 
@@ -101,8 +105,16 @@ class AcademicTermRepository(ABC):
         """Persist an academic term."""
 
     @abstractmethod
+    async def list_all(self) -> list[AcademicTerm]:
+        """List all academic terms."""
+
+    @abstractmethod
     async def list_holidays(self, term_id: UUID) -> list[Holiday]:
         """List holidays scheduled within a term."""
+
+    @abstractmethod
+    async def list_all_holidays(self) -> list[Holiday]:
+        """List all holidays across all terms."""
 
     @abstractmethod
     async def save_holiday(self, holiday: Holiday) -> Holiday:
