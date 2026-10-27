@@ -275,7 +275,7 @@
       "status": "done",
       "started_at": "2026-10-27T19:50:00+05:30",
       "finished_at": "2026-10-28T01:51:00+05:30",
-      "commit": "pending",
+      "commit": "6f61e20",
       "tasks": [
         "Security audits: uv pip-audit (Python) and pnpm audit (Frontend) - zero known vulnerabilities",
         "Hardened perimeter: Content-Security-Policy, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, and Permissions-Policy in Caddyfile and Next.js",
