@@ -13,6 +13,10 @@ from app.core.security import decode_token
 from app.domain import Role, UnitOfWork
 from app.infrastructure.db.repositories import SqlAlchemyUnitOfWork
 from app.infrastructure.security.rate_limiter import RedisSlidingWindowRateLimiter
+from app.infrastructure.storage.minio_storage import (
+    MinioStorageService,
+    get_storage_service,
+)
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -27,6 +31,10 @@ def get_clock() -> Clock:
 
 def get_rate_limiter() -> RedisSlidingWindowRateLimiter:
     return RedisSlidingWindowRateLimiter(get_redis_client())
+
+
+def get_storage() -> MinioStorageService:
+    return get_storage_service()
 
 
 async def get_current_principal(

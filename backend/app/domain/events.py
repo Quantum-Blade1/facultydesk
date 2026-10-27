@@ -66,3 +66,11 @@ class TaskDeadlineChanged(DomainEvent):
     new_deadline_utc: datetime = field(
         default_factory=lambda: datetime.now(UTC)
     )
+
+
+@dataclass(frozen=True)
+class TimetableConfirmed(DomainEvent):
+    upload_id: UUID = field(default_factory=uuid4)
+    department_id: UUID = field(default_factory=uuid4)
+    academic_term_id: UUID = field(default_factory=uuid4)
+    slot_count: int = 0

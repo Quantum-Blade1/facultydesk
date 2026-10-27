@@ -190,9 +190,165 @@ $$\forall p_1, p_2 \in \text{FacultyProfile}, \quad (p_1.\text{department\_id} =
 - Time complexity: $O(|I|) = O(1)$ since $|I| \le 5$.
 - Space complexity: $O(1)$.
 
+### 5.2 Timetable Cell Tokenization Grammar
+
+1. **Idea**:
+Timetable cells in collegiate schedules encode course codes, sections, rooms, and faculty initials within compact, varied textual patterns. The tokenization engine extracts discrete components while handling co-teaching delimiters.
+
+2. **Formula and Grammar Rules**:
+Let cell text $C$ be a non-empty string.
+Co-teacher delimiter set: $\Delta_{\text{co}} = \{'/', ',', '\&'\}$.
+Standard cell topologies:
+- Pattern 1 (Parenthesized Initials):
+  $$\mathcal{P}_1 = \verb!^(?P<course>[A-Za-z0-9\s\-]+?)\s*\((?P<initials>[A-Za-z0-9\s/,&]+)\)(?:\s+(?P<room>[A-Za-z0-9\-]+))?$!$$
+- Pattern 2 (Course, Section, and Initials):
+  $$\mathcal{P}_2 = \verb!^(?P<course>[A-Za-z0-9\s]+?)\s*-\s*(?P<section>[A-Za-z0-9]+)\s*\((?P<initials>[A-Za-z0-9\s/,&]+)\)(?:\s+(?P<room>[A-Za-z0-9\-]+))?$!$$
+- Pattern 3 (Space-Delimited Course, Initials, Room):
+  $$\mathcal{P}_3 = \verb!^(?P<course>[A-Z]{2,6}[0-9]{0,4})\s+(?P<initials>[A-Z]{2,5})(?:\s+(?P<room>[A-Za-z0-9\-]+))?$!$$
+
+Co-teacher splitting rule:
+Given raw initials string $S$, token set $T$ is obtained by:
+$$T = \{t.\operatorname{strip}() \mid t \in \operatorname{split}(S, \Delta_{\text{co}}) \land t.\operatorname{strip}() \ne \emptyset\}$$
+
+3. **Worked Examples**:
+- `CN (KKS)`: Course = `"CN"`, Initials = `["KKS"]`, Room = `None`.
+- `DBMS Lab - A1 (RS/PN)`: Course = `"DBMS Lab"`, Section = `"A1"`, Initials = `["RS", "PN"]`.
+- `OOAD KKS 301`: Course = `"OOAD"`, Initials = `["KKS"]`, Room = `"301"`.
+- `SE - B2 (AP & MKS) 204`: Course = `"SE"`, Section = `"B2"`, Initials = `["AP", "MKS"]`, Room = `"204"`.
+
+4. **Edge Cases**:
+- Extra whitespace within parentheses: e.g. `( KKS / PN )` normalized cleanly to `["KKS", "PN"]`.
+- Trailing notes: non-matching cells are captured as unparsed raw text and flagged for review rather than dropped.
+
+5. **Complexity**:
+- Time complexity: $O(|C|)$ linear regex matching.
+- Space complexity: $O(1)$.
+
 6. **Proof Plan**:
-- `test_initials_valid_property`: Hypothesis test generating strings of 2–5 uppercase letters, verifying valid instantiation.
-- `test_initials_invalid_property`: Hypothesis test generating invalid strings (length $< 2$ or $> 5$, numbers, lowercase, symbols), verifying `InvariantViolation`.
+- `test_cell_tokenization_patterns`: Unit test verifying extraction across all 4 sample topologies.
+
+### 5.3 Initials Resolution via Normalized Levenshtein Distance
+
+1. **Idea**:
+Given an extracted initials token $t$, the system resolves it to a unique `FacultyProfile` in the department. To handle minor OCR errors or typographical slips without false positives, resolution proceeds in three strictly prioritized tiers: exact initials match, exact alias match, and bounded fuzzy matching.
+
+2. **Formula and Invariants**:
+Let $t$ be the query token and $F = \{p_1, p_2, \dots, p_N\}$ be the department faculty profiles.
+The Levenshtein distance $\operatorname{lev}(a, b)$ is the minimum number of single-character edits (insertions, deletions, substitutions) required to transform $a$ into $b$.
+The Normalized Levenshtein Similarity is defined as:
+$$\operatorname{sim}(a, b) = 1 - \frac{\operatorname{lev}(a, b)}{\max(|a|, |b|)}$$
+
+Resolution Tiers:
+- **Tier 1 (Exact Initials)**:
+  $$\exists p \in F \text{ s.t. } p.\text{initials}.value = t \implies \text{Resolved}(p)$$
+- **Tier 2 (Exact Alias)**:
+  $$\exists p \in F \text{ s.t. } t \in p.\text{aliases} \implies \text{Resolved}(p)$$
+- **Tier 3 (Fuzzy Matching)**:
+  Compute similarities $s_i = \operatorname{sim}(t, p_i.\text{initials}.value)$ for all $p_i \in F$.
+  Let $s_{(1)} \ge s_{(2)} \ge \dots \ge s_{(N)}$ be the ordered similarities.
+  Resolution condition:
+  $$\operatorname{Result}(t) = \begin{cases}
+  \text{Resolved}(p_{(1)}) & \text{if } s_{(1)} \ge \theta_{\text{sim}} \land (s_{(1)} - s_{(2)}) \ge \theta_{\text{margin}} \\
+  \text{Ambiguous} & \text{otherwise}
+  \end{cases}$$
+  where:
+  $$\theta_{\text{sim}} = 0.85, \quad \theta_{\text{margin}} = 0.10$$
+
+**Threshold Justification**:
+- $\theta_{\text{sim}} = 0.85$: Initials are short strings ($2 \le |I| \le 5$). For $|I| = 2$, a 1-character difference yields $\operatorname{sim} = 1 - 1/2 = 0.50 < 0.85$ (preventing dangerous cross-matches like `CN` $\leftrightarrow$ `PN`). For $|I| = 3$, 1 difference yields $1 - 1/3 = 0.67 < 0.85$. Only for $|I| \ge 4$ does 1 single typo achieve $\operatorname{sim} \ge 0.75$, and for $|I| \ge 7$ (such as full surnames or long aliases) does $\operatorname{sim} \ge 0.85$.
+- $\theta_{\text{margin}} = 0.10$: Precludes guessing when two faculty have closely related initials (e.g. `KS` vs `KSS`).
+
+3. **Worked Examples**:
+- Token `KKS` with profile initials `KKS`: Tier 1 exact match $\implies \operatorname{sim} = 1.0 \implies \text{Resolved}$.
+- OCR noise `KS5` with faculty `KS` ($|I|=2$) and `KSS` ($|I|=3$):
+  $$\operatorname{sim}(\text{KS5}, \text{KS}) = 1 - 1/3 = 0.67 < 0.85$$
+  $$\operatorname{sim}(\text{KS5}, \text{KSS}) = 1 - 1/3 = 0.67 < 0.85$$
+  Neither meets $\theta_{\text{sim}} = 0.85$, and margin is $0.00 < 0.10 \implies \text{Ambiguous}$ (safely flagged for human review).
+
+4. **Edge Cases**:
+- Empty token: Rejected immediately.
+- Multiple exact alias matches: Flagged as ambiguous.
+- Tie in top score: $s_{(1)} = s_{(2)} \implies s_{(1)} - s_{(2)} = 0 < 0.10 \implies$ Ambiguous.
+
+5. **Complexity**:
+- Time complexity: $O(N \cdot |t| \cdot \bar{L})$ where $N \le 100$ and $|t|, \bar{L} \le 5 \implies < 100\,\mu\text{s}$.
+- Space complexity: $O(N)$ for similarity ranking.
+
+6. **Proof Plan**:
+- `test_normalized_similarity_properties`: Property tests verifying $\operatorname{sim}(a, b) \in [0, 1]$, symmetry $\operatorname{sim}(a, b) = \operatorname{sim}(b, a)$, and identity $\operatorname{sim}(a, a) = 1$.
+- `test_ambiguity_threshold_rejection`: Proving `KS5` against `KS` and `KSS` yields Ambiguous.
+
+### 5.4 Merged-Cell Period Expansion
+
+1. **Idea**:
+In collegiate timetables, laboratory practicals, seminars, and project blocks frequently span multiple consecutive periods (e.g., Periods 2 and 3). A spreadsheet merged cell spans columns $k$ through $m$ ($k \le m$). The expansion maps this into a single continuous `TimetableSlot`.
+
+2. **Formula and Invariants**:
+Let periods be indexed $1, 2, \dots, P$.
+Each period $i$ has start wall-clock time $s(i)$ and end wall-clock time $e(i)$.
+Contiguity condition:
+$$\forall i \in [k, m-1], \quad s(i) < e(i) \le s(i+1) < e(i+1)$$
+The expanded slot interval is:
+$$\operatorname{Slot}(k, m) = [s(k), e(m))$$
+Duration:
+$$\Delta_{\text{duration}} = e(m) - s(k)$$
+
+3. **Worked Example**:
+- Period 2: `10:00 - 10:55` ($s(2) = 10:00, e(2) = 10:55$).
+- Period 3: `11:00 - 11:55` ($s(3) = 11:00, e(3) = 11:55$).
+- Merged Lab spans columns 2 to 3:
+  $$\operatorname{Slot} = [10:00, 11:55), \quad \Delta = 1\text{h } 55\text{m}$$
+
+4. **Edge Cases**:
+- Single period cell ($k = m$): $\operatorname{Slot}(k, k) = [s(k), e(k))$.
+- Missing intermediate period: Validated to ensure $e(m) > s(k)$.
+
+5. **Complexity**:
+- Time complexity: $O(1)$.
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_merged_cell_period_expansion`: Integration test proving merged columns 2–3 produce slot from start of 2 to end of 3.
+
+### 5.5 Header Day and Time Normalization
+
+1. **Idea**:
+Timetable files use heterogeneous representations for day names (`Mon`, `Monday`, `MON`) and time intervals (`9:00-9:55`, `9.00 - 9.55`, `09:00 to 09:55`). Canonical normalization maps these into ISO weekday integers ($1 = \text{Monday}, \dots, 6 = \text{Saturday}$) and Python `(time, time)` tuples.
+
+2. **Formula and Grammar**:
+Day Normalization Function:
+$$\operatorname{norm\_day}(D) = \begin{cases}
+1 & \text{if } D \in \{\text{MON}, \text{MONDAY}, \text{M}\} \\
+2 & \text{if } D \in \{\text{TUE}, \text{TUES}, \text{TUESDAY}, \text{T}\} \\
+3 & \text{if } D \in \{\text{WED}, \text{WEDNESDAY}, \text{W}\} \\
+4 & \text{if } D \in \{\text{THU}, \text{THUR}, \text{THURSDAY}, \text{TH}\} \\
+5 & \text{if } D \in \{\text{FRI}, \text{FRIDAY}, \text{F}\} \\
+6 & \text{if } D \in \{\text{SAT}, \text{SATURDAY}, \text{S}\} \\
+\bot & \text{otherwise}
+\end{cases}$$
+
+Time Range Grammar:
+$$\mathcal{G}_{\text{time}} = \verb!^\s*(\d{1,2})[:.](\d{2})\s*(?:-|to)\s*(\d{1,2})[:.](\d{2})\s*$!$$
+Extracted values $(h_1, m_1, h_2, m_2)$ yield:
+$$t_{\text{start}} = \operatorname{time}(h_1, m_1), \quad t_{\text{end}} = \operatorname{time}(h_2, m_2)$$
+Invariant:
+$$t_{\text{start}} < t_{\text{end}}$$
+
+3. **Worked Examples**:
+- `"Mon"` $\to 1$, `"WEDNESDAY"` $\to 3$.
+- `"9:00-9:55"` $\to (09:00, 09:55)$.
+- `"09.00 to 09.55"` $\to (09:00, 09:55)$.
+
+4. **Edge Cases**:
+- Sunday: Timetable classes are not scheduled on Sunday; Sunday tokens are rejected.
+- PM times without 24-hour offset (e.g. `2:00 - 2:55`): When $h_1 < 8$, add 12 to convert to 24-hour system (`14:00 - 14:55`).
+
+5. **Complexity**:
+- Time complexity: $O(1)$.
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_header_normalization`: Unit test asserting parsing across varied day and time string formats.
 
 ## 6. OCR Confidence
 

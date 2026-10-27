@@ -16,6 +16,8 @@ from app.domain import (
     Circular,
     CircularRepository,
     CircularStatus,
+    Course,
+    CourseRepository,
     Department,
     DepartmentRepository,
     Event,
@@ -33,10 +35,20 @@ from app.domain import (
     RefreshToken,
     RefreshTokenRepository,
     Role,
+    Room,
+    RoomRepository,
     ScheduledNotification,
+    Section,
+    SectionRepository,
     Task,
     TaskRepository,
     TaskStatus,
+    TimeSlot,
+    TimetableSlot,
+    TimetableSlotRepository,
+    TimetableUpload,
+    TimetableUploadRepository,
+    TimetableUploadStatus,
     UnitOfWork,
     User,
     UserRepository,
@@ -45,14 +57,19 @@ from app.infrastructure.db.models import (
     AcademicTermModel,
     AuditLogModel,
     CircularModel,
+    CourseModel,
     DepartmentModel,
     EventAttendeeModel,
     EventModel,
     FacultyProfileModel,
     HolidayModel,
     RefreshTokenModel,
+    RoomModel,
     ScheduledNotificationModel,
+    SectionModel,
     TaskModel,
+    TimetableSlotModel,
+    TimetableUploadModel,
     UserModel,
 )
 
@@ -188,6 +205,62 @@ def refresh_token_to_domain(m: RefreshTokenModel) -> RefreshToken:
         is_revoked=m.is_revoked,
         expires_at_utc=m.expires_at_utc,
         created_at_utc=m.created_at_utc,
+    )
+
+
+def course_to_domain(m: CourseModel) -> Course:
+    return Course(
+        id=m.id,
+        department_id=m.department_id,
+        code=m.code,
+        name=m.name,
+        credits=m.credits,
+    )
+
+
+def section_to_domain(m: SectionModel) -> Section:
+    return Section(
+        id=m.id,
+        course_id=m.course_id,
+        name=m.name,
+    )
+
+
+def room_to_domain(m: RoomModel) -> Room:
+    return Room(
+        id=m.id,
+        code=m.code,
+        building=m.building,
+        capacity=m.capacity,
+    )
+
+
+def timetable_upload_to_domain(m: TimetableUploadModel) -> TimetableUpload:
+    return TimetableUpload(
+        id=m.id,
+        department_id=m.department_id,
+        academic_term_id=m.academic_term_id,
+        file_key=m.file_key,
+        status=TimetableUploadStatus(m.status),
+        parse_report=dict(m.parse_report),
+        uploaded_at_utc=m.uploaded_at_utc,
+    )
+
+
+def timetable_slot_to_domain(m: TimetableSlotModel) -> TimetableSlot:
+    return TimetableSlot(
+        id=m.id,
+        timetable_upload_id=m.timetable_upload_id,
+        time_slot=TimeSlot(
+            weekday=m.weekday,
+            start_time=m.start_time,
+            end_time=m.end_time,
+        ),
+        course_id=m.course_id,
+        section_id=m.section_id,
+        room_id=m.room_id,
+        faculty_id=m.faculty_id,
+        source_cell_reference=m.source_cell_reference,
     )
 
 
@@ -725,6 +798,191 @@ class RefreshTokenRepositoryImpl(RefreshTokenRepository):
         await self._session.flush()
 
 
+class CourseRepositoryImpl(CourseRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id(self, course_id: UUID) -> Course | None:
+        stmt = select(CourseModel).where(CourseModel.id == course_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return course_to_domain(model) if model else None
+
+    async def get_by_department_and_code(self, department_id: UUID, code: str) -> Course | None:
+        stmt = select(CourseModel).where(
+            CourseModel.department_id == department_id,
+            CourseModel.code == code,
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return course_to_domain(model) if model else None
+
+    async def save(self, course: Course) -> Course:
+        model = await self._session.get(CourseModel, course.id)
+        if model is None:
+            model = CourseModel(
+                id=course.id,
+                department_id=course.department_id,
+                code=course.code,
+                name=course.name,
+                credits=course.credits,
+            )
+            self._session.add(model)
+        else:
+            model.code = course.code
+            model.name = course.name
+            model.credits = course.credits
+        await self._session.flush()
+        return course_to_domain(model)
+
+
+class SectionRepositoryImpl(SectionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_course_and_name(self, course_id: UUID, name: str) -> Section | None:
+        stmt = select(SectionModel).where(
+            SectionModel.course_id == course_id,
+            SectionModel.name == name,
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return section_to_domain(model) if model else None
+
+    async def save(self, section: Section) -> Section:
+        model = await self._session.get(SectionModel, section.id)
+        if model is None:
+            model = SectionModel(
+                id=section.id,
+                course_id=section.course_id,
+                name=section.name,
+            )
+            self._session.add(model)
+        else:
+            model.name = section.name
+        await self._session.flush()
+        return section_to_domain(model)
+
+
+class RoomRepositoryImpl(RoomRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_code(self, code: str) -> Room | None:
+        stmt = select(RoomModel).where(RoomModel.code == code)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return room_to_domain(model) if model else None
+
+    async def save(self, room: Room) -> Room:
+        model = await self._session.get(RoomModel, room.id)
+        if model is None:
+            model = RoomModel(
+                id=room.id,
+                code=room.code,
+                building=room.building,
+                capacity=room.capacity,
+            )
+            self._session.add(model)
+        else:
+            model.building = room.building
+            model.capacity = room.capacity
+        await self._session.flush()
+        return room_to_domain(model)
+
+
+class TimetableUploadRepositoryImpl(TimetableUploadRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id(self, upload_id: UUID) -> TimetableUpload | None:
+        stmt = select(TimetableUploadModel).where(TimetableUploadModel.id == upload_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return timetable_upload_to_domain(model) if model else None
+
+    async def save(self, upload: TimetableUpload) -> TimetableUpload:
+        model = await self._session.get(TimetableUploadModel, upload.id)
+        if model is None:
+            model = TimetableUploadModel(
+                id=upload.id,
+                department_id=upload.department_id,
+                academic_term_id=upload.academic_term_id,
+                file_key=upload.file_key,
+                status=upload.status.value,
+                parse_report=upload.parse_report,
+                uploaded_at_utc=upload.uploaded_at_utc,
+            )
+            self._session.add(model)
+        else:
+            model.status = upload.status.value
+            model.parse_report = upload.parse_report
+            model.uploaded_at_utc = upload.uploaded_at_utc
+        await self._session.flush()
+        return timetable_upload_to_domain(model)
+
+
+class TimetableSlotRepositoryImpl(TimetableSlotRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_by_upload_id(self, upload_id: UUID) -> list[TimetableSlot]:
+        stmt = (
+            select(TimetableSlotModel)
+            .where(TimetableSlotModel.timetable_upload_id == upload_id)
+            .order_by(TimetableSlotModel.weekday, TimetableSlotModel.start_time)
+        )
+        result = await self._session.execute(stmt)
+        return [timetable_slot_to_domain(m) for m in result.scalars().all()]
+
+    async def list_by_faculty_id(self, faculty_id: UUID) -> list[TimetableSlot]:
+        stmt = (
+            select(TimetableSlotModel)
+            .where(TimetableSlotModel.faculty_id == faculty_id)
+            .order_by(TimetableSlotModel.weekday, TimetableSlotModel.start_time)
+        )
+        result = await self._session.execute(stmt)
+        return [timetable_slot_to_domain(m) for m in result.scalars().all()]
+
+    async def save_all(self, slots: list[TimetableSlot]) -> list[TimetableSlot]:
+        saved_models: list[TimetableSlotModel] = []
+        for slot in slots:
+            model = await self._session.get(TimetableSlotModel, slot.id)
+            if model is None:
+                model = TimetableSlotModel(
+                    id=slot.id,
+                    timetable_upload_id=slot.timetable_upload_id,
+                    weekday=slot.time_slot.weekday,
+                    start_time=slot.time_slot.start_time,
+                    end_time=slot.time_slot.end_time,
+                    course_id=slot.course_id,
+                    section_id=slot.section_id,
+                    room_id=slot.room_id,
+                    faculty_id=slot.faculty_id,
+                    source_cell_reference=slot.source_cell_reference,
+                )
+                self._session.add(model)
+            else:
+                model.weekday = slot.time_slot.weekday
+                model.start_time = slot.time_slot.start_time
+                model.end_time = slot.time_slot.end_time
+                model.course_id = slot.course_id
+                model.section_id = slot.section_id
+                model.room_id = slot.room_id
+                model.faculty_id = slot.faculty_id
+                model.source_cell_reference = slot.source_cell_reference
+            saved_models.append(model)
+        await self._session.flush()
+        return [timetable_slot_to_domain(m) for m in saved_models]
+
+    async def delete_by_upload_id(self, upload_id: UUID) -> None:
+        stmt = sa_delete(TimetableSlotModel).where(
+            TimetableSlotModel.timetable_upload_id == upload_id
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
+
+
 class SqlAlchemyUnitOfWork(UnitOfWork):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -742,6 +1000,11 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.tasks = TaskRepositoryImpl(self._session)
         self.audit_logs = AuditLogRepositoryImpl(self._session)
         self.refresh_tokens = RefreshTokenRepositoryImpl(self._session)
+        self.timetable_uploads = TimetableUploadRepositoryImpl(self._session)
+        self.timetable_slots = TimetableSlotRepositoryImpl(self._session)
+        self.courses = CourseRepositoryImpl(self._session)
+        self.sections = SectionRepositoryImpl(self._session)
+        self.rooms = RoomRepositoryImpl(self._session)
         return self
 
     async def __aexit__(

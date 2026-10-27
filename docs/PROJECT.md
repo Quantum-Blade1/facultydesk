@@ -28,7 +28,11 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Redis-backed Sliding Window Log rate limiter protecting `/api/auth/login` (5/min per IP and account) and `/api/auth/refresh` (30/min per IP).
 - Faculty directory management with department CRUD, individual faculty creation/updates, deactivation, and bulk CSV/XLSX import with validation reports.
 - Academic calendar terms and holidays management supporting single entry and bulk CSV imports.
-- Synthetic database seeder (`make seed`) populating CSE department, Admin, HOD, 8 faculty profiles, academic term, and holidays.
+- Synthetic database seeder (`make seed`) populating CSE department, Admin, HOD, faculty profiles, academic term, and holidays.
+- Multi-format Timetable Ingestion engine supporting XLSX (with merged-cell period expansion), long-format CSV, and text-layer PDF with table extraction.
+- Deterministic 3-tier initials resolution (exact initials -> exact alias -> bounded normalized Levenshtein similarity with theta_sim >= 0.85 and theta_margin >= 0.10) preventing false matches.
+- Celery worker asynchronous parsing pipeline generating preview slots and detailed unmapped token issue reports.
+- Two-phase upload & confirm workflow creating `Course`, `Section`, `Room`, and `TimetableSlot` entities, and emitting `TimetableConfirmed` domain events.
 - Docker Compose development and production environments with health checks on all services.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
@@ -354,6 +358,78 @@ sequenceDiagram
         UC->>DB: Revoke all tokens in Family F1
         API-->>Client: 401 Unauthorized (Family Revoked)
     end
+```
+
+### 4.7 Timetable Ingestion Activity Diagram
+
+```mermaid
+flowchart TD
+    Start([Upload File Received]) --> Sniff[Sniff MIME Type from Bytes]
+    Sniff --> CheckType{MIME Type}
+    CheckType -->|XLSX| ParseXlsx[openpyxl: Detect Grid & Merged Cells]
+    CheckType -->|CSV| ParseCsv[CSV Reader: Long-format Tokens]
+    CheckType -->|PDF| CheckPdf{Text Layer Present?}
+    CheckType -->|Other| RejectFormat[Reject Unsupported Format]
+
+    CheckPdf -->|No: Scanned| RejectScanned[Reject with Guided Message]
+    CheckPdf -->|Yes: Text| ParsePdf[pdfplumber: Extract Tables & Cells]
+
+    ParseXlsx --> ExpandPeriods["Merged-Cell Period Expansion: k..m to s(k)..e(m)"]
+    ParseCsv --> Tokenize
+    ParsePdf --> Tokenize
+    ExpandPeriods --> Tokenize["Tokenize Cells: Course, Section, Room, Initials"]
+
+    Tokenize --> CoTeachers{"Co-Teacher Delimiters /, &, ,?"}
+    CoTeachers -->|Yes| SplitCo[Split into Individual Initials]
+    CoTeachers -->|No| InitialsResolution[Initials Resolution Engine]
+    SplitCo --> InitialsResolution
+
+    InitialsResolution --> MatchTier{Resolution Tiers}
+    MatchTier -->|Exact Initials| Resolved[Resolved: Faculty Profile ID]
+    MatchTier -->|Exact Alias| Resolved
+    MatchTier -->|Fuzzy: sim >= 0.85 & margin >= 0.10| Resolved
+    MatchTier -->|sim < 0.85 or margin < 0.10| Ambiguous[Record Unresolved / Ambiguous Issue]
+
+    Resolved --> BuildPreview[Build Preview Slots & Issues Report]
+    Ambiguous --> BuildPreview
+    BuildPreview --> StateReady[TimetableUpload State -> PREVIEW_READY]
+    StateReady --> End([Awaiting HOD Confirmation])
+```
+
+### 4.8 Timetable Upload to Confirmation Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor HOD as HOD / Admin
+    participant API as FastAPI Router
+    participant MinIO as MinIO Storage
+    participant DB as PostgreSQL
+    participant Worker as Celery Worker
+    participant Event as Domain Event Bus
+
+    HOD->>API: POST /api/timetables/upload (File, dept_id, term_id)
+    API->>MinIO: upload_file(key, file_bytes)
+    API->>DB: Save TimetableUpload (Status: UPLOADED)
+    API->>Worker: Enqueue process_timetable_upload(upload_id)
+    API-->>HOD: 202 Accepted {upload_id, status: "UPLOADED"}
+
+    Worker->>MinIO: download_file(key)
+    Worker->>Worker: Parse Grid & Normalize Header Times
+    Worker->>DB: Fetch Department Faculty Profiles
+    Worker->>Worker: Resolve Initials (Exact -> Alias -> Levenshtein)
+    Worker->>DB: Update TimetableUpload (Status: PREVIEW_READY, parse_report)
+
+    HOD->>API: GET /api/timetables/{upload_id}
+    API->>DB: Read TimetableUpload
+    API-->>HOD: 200 OK {status: PREVIEW_READY, preview_slots, unresolved_tokens}
+
+    HOD->>API: POST /api/timetables/{upload_id}/confirm
+    API->>DB: Get or Create Courses, Sections, Rooms
+    API->>DB: Save TimetableSlots
+    API->>DB: Update TimetableUpload (Status: CONFIRMED)
+    API->>Event: Emit TimetableConfirmed(upload_id, dept_id, term_id, slot_count)
+    API-->>HOD: 200 OK {upload_id, slots_created, status: "CONFIRMED"}
 ```
 
 ## 5. How to run, test and deploy

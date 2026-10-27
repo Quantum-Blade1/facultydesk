@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "04",
+  "current_stage": "05",
   "stages": [
     {
       "id": "01",
@@ -89,12 +89,35 @@
     {
       "id": "04",
       "file": "04-timetable-ingestion.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T08:38:00+05:30",
+      "finished_at": "2026-10-27T18:46:00+05:30",
+      "commit": "a917a00",
+      "tasks": [
+        "specify timetable cell parsing, initials resolution, and header grammars in docs/MATHS.md",
+        "implement MIME sniffer and TimetableParser strategy factory (xlsx, csv, pdf)",
+        "implement merged-cell period expansion and day/time normalizer",
+        "implement initials resolution engine with Levenshtein similarity and ambiguity thresholds",
+        "implement TimetableUpload processing in Celery worker",
+        "implement preview and confirm use cases",
+        "wire /api/timetables router endpoints",
+        "create sample timetables (3 xlsx, 1 csv, 1 pdf)",
+        "write mathematical property tests and parser integration tests",
+        "update docs/PROJECT.md, MATHS.md, DECISIONS.md with diagrams"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 73 source files; 33 passed in 3.23s",
+        "samples/timetables/ fixture suite (3 xlsx, 1 csv, 1 pdf) parsed with 100% expected slot parity",
+        "POST /api/timetables/upload -> 202 Accepted enqueuing Celery worker task",
+        "GET /api/timetables/{id} -> 200 OK preview report with total_slots: 9, unresolved_count: 0",
+        "POST /api/timetables/{id}/confirm -> 200 OK creating 9 slots linked to faculty and emitting TimetableConfirmed domain event",
+        "GET /api/timetables/faculty/{kks_id} -> 200 OK returning confirmed faculty slots",
+        "Merged-cell lab expansion spanning periods C2:D2 expanded to 10:00-11:55 slot",
+        "Co-teacher cells (RS/PN, AP & MKS) split and candidate slots created for both faculty",
+        "Corrupted/unrecognized cell (XYZ99) reported in unresolved_tokens with cell coordinates B2, status UNRESOLVED",
+        "Scanned PDF without text layer rejected with descriptive guidance",
+        "docs/diagrams/timetable_ingestion_activity.svg and timetable_upload_confirm_sequence.svg rendered and verified"
+      ]
     },
     {
       "id": "05",

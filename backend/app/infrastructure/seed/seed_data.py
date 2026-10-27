@@ -86,6 +86,8 @@ async def seed_database() -> None:
             ("SBR", "Prof. S. B. Rao", "sbr@facultydesk.local", ("S. B. Rao", "Rao S B")),
             ("VK", "Prof. Vikas Kumar", "vk@facultydesk.local", ("V. Kumar", "Vikas K")),
             ("RTR", "Dr. R. T. Raman", "rtr@facultydesk.local", ("R. T. Raman", "Raman R T")),
+            ("RS", "Prof. Rohit Sharma", "rs@facultydesk.local", ("R. Sharma", "Rohit S")),
+            ("PN", "Prof. Priya Nair", "pn@facultydesk.local", ("P. Nair", "Priya N")),
         ]
 
         for inits_str, name, email, aliases in faculty_specs:

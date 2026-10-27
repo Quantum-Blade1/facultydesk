@@ -135,4 +135,39 @@ flowchart TD
     UseCase --> Cookie["Set httpOnly Cookie (Rotated Refresh Token)"]
 ```
 
+- **Stage 04: Timetable upload, parsing and initials resolution**
+  - What we built:
+    - Multi-format ingestion pipeline (`XlsxTimetableParser`, `CsvTimetableParser`, `PdfTimetableParser`) selected via `TimetableParserFactory`.
+    - Merged-cell period expansion spanning spreadsheet periods $k \dots m$ into a single continuous slot $[s(k), e(m))$.
+    - Co-teacher cell splitting across delimiters `/`, `,`, `&` creating candidate slots for each teacher.
+    - Three-tier initials resolution algorithm (exact initials -> exact alias -> bounded normalized Levenshtein similarity with $\theta_{\text{sim}} \ge 0.85$ and $\theta_{\text{margin}} \ge 0.10$).
+    - Rejection of scanned/non-text PDFs with guided error messaging pointing users to XLSX or CSV.
+    - Asynchronous Celery worker task (`process_timetable_upload`) parsing files from MinIO using isolated `NullPool` connections.
+    - Two-phase confirmation workflow creating `Course`, `Section`, `Room`, and `TimetableSlot` entities, and emitting `TimetableConfirmed` domain events.
+  - Why this way:
+    - Separating upload from confirmation (two-phase commit with preview) prevents unreviewed or corrupted timetable slots from landing directly on faculty schedules.
+    - Strict thresholds ($\theta_{\text{sim}} = 0.85$, $\theta_{\text{margin}} = 0.10$) ensure short 2-3 letter initials are never falsely matched due to 1-character typos, while ambiguity reporting directs human review only where necessary.
+    - Celery task isolation with `NullPool` avoids asyncio event-loop mismatch with asyncpg when worker executes multiple jobs.
+  - What we rejected and why:
+    - Optical Character Recognition on scanned PDF timetables (out of scope for timetable ingestion; prone to cell grid hallucination; guided error points to native XLSX/CSV).
+    - Immediate insertion into calendar events during parse (Stage 05 owns recurrence expansion and holiday exclusion; Stage 04 only generates confirmed timetable template slots and emits domain event).
+    - Hardcoded department period schedules (periods are dynamically discovered from spreadsheet and table header time intervals).
+  - Risks and how they are contained:
+    - Corrupted or unparseable cells: contained by structured `unresolved_tokens` reporting containing exact cell coordinates and failure details without aborting the entire sheet.
+    - AsyncPG event loop attachment in Celery: contained by dedicated async engine creation with `NullPool` and explicit disposal per task execution.
+
+```mermaid
+flowchart LR
+    Upload["Upload Endpoint"] --> MinIO[("MinIO S3")]
+    Upload --> Queue["Celery Task Queue"]
+    Queue --> Worker["Celery Worker"]
+    Worker --> Factory["Parser Factory"]
+    Factory --> Engine["XLSX / CSV / PDF Parser"]
+    Engine --> Resolver["Initials Resolver (Levenshtein)"]
+    Resolver --> DB[("PostgreSQL: PREVIEW_READY")]
+    HOD["HOD Confirm"] --> Slots[("PostgreSQL: TimetableSlots")]
+    Slots --> EventBus["Domain Event: TimetableConfirmed"]
+```
+
+
 

@@ -7,13 +7,18 @@ from app.domain.entities import (
     AcademicTerm,
     AuditLog,
     Circular,
+    Course,
     Department,
     Event,
     FacultyProfile,
     Holiday,
     RefreshToken,
+    Room,
     ScheduledNotification,
+    Section,
     Task,
+    TimetableSlot,
+    TimetableUpload,
     User,
 )
 from app.domain.value_objects import Initials
@@ -197,6 +202,68 @@ class RefreshTokenRepository(ABC):
         """Revoke all refresh tokens for a user."""
 
 
+class CourseRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, course_id: UUID) -> Course | None:
+        """Fetch course by unique identifier."""
+
+    @abstractmethod
+    async def get_by_department_and_code(self, department_id: UUID, code: str) -> Course | None:
+        """Fetch course by department and course code."""
+
+    @abstractmethod
+    async def save(self, course: Course) -> Course:
+        """Persist a course."""
+
+
+class SectionRepository(ABC):
+    @abstractmethod
+    async def get_by_course_and_name(self, course_id: UUID, name: str) -> Section | None:
+        """Fetch section by course and section name."""
+
+    @abstractmethod
+    async def save(self, section: Section) -> Section:
+        """Persist a section."""
+
+
+class RoomRepository(ABC):
+    @abstractmethod
+    async def get_by_code(self, code: str) -> Room | None:
+        """Fetch room by unique room code."""
+
+    @abstractmethod
+    async def save(self, room: Room) -> Room:
+        """Persist a room."""
+
+
+class TimetableUploadRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, upload_id: UUID) -> TimetableUpload | None:
+        """Fetch timetable upload by unique identifier."""
+
+    @abstractmethod
+    async def save(self, upload: TimetableUpload) -> TimetableUpload:
+        """Persist a timetable upload."""
+
+
+class TimetableSlotRepository(ABC):
+    @abstractmethod
+    async def list_by_upload_id(self, upload_id: UUID) -> list[TimetableSlot]:
+        """List all slots generated from an upload."""
+
+    @abstractmethod
+    async def list_by_faculty_id(self, faculty_id: UUID) -> list[TimetableSlot]:
+        """List timetable slots assigned to a faculty member."""
+
+    @abstractmethod
+    async def save_all(self, slots: list[TimetableSlot]) -> list[TimetableSlot]:
+        """Persist multiple timetable slots."""
+
+    @abstractmethod
+    async def delete_by_upload_id(self, upload_id: UUID) -> None:
+        """Delete all slots associated with an upload."""
+
+
 class UnitOfWork(ABC):
     departments: DepartmentRepository
     users: UserRepository
@@ -208,6 +275,11 @@ class UnitOfWork(ABC):
     tasks: TaskRepository
     audit_logs: AuditLogRepository
     refresh_tokens: RefreshTokenRepository
+    timetable_uploads: TimetableUploadRepository
+    timetable_slots: TimetableSlotRepository
+    courses: CourseRepository
+    sections: SectionRepository
+    rooms: RoomRepository
 
     @abstractmethod
     async def __aenter__(self) -> Self:

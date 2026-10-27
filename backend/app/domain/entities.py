@@ -21,6 +21,7 @@ from app.domain.value_objects import (
     Role,
     TaskStatus,
     TimeSlot,
+    TimetableUploadStatus,
 )
 
 
@@ -142,11 +143,51 @@ class TimetableUpload:
     department_id: UUID = field(default_factory=uuid4)
     academic_term_id: UUID = field(default_factory=uuid4)
     file_key: str = ""
-    status: str = "PENDING"
+    status: TimetableUploadStatus = TimetableUploadStatus.UPLOADED
     parse_report: dict[str, Any] = field(default_factory=dict)
+    failure_reason: str | None = None
     uploaded_at_utc: datetime = field(
         default_factory=lambda: datetime.now(UTC)
     )
+
+    def start_parsing(self) -> None:
+        if self.status != TimetableUploadStatus.UPLOADED:
+            raise InvalidTransition(
+                self.status.value,
+                TimetableUploadStatus.PARSING.value,
+                "TimetableUpload",
+            )
+        self.status = TimetableUploadStatus.PARSING
+
+    def mark_preview_ready(self, parse_report: dict[str, Any]) -> None:
+        if self.status != TimetableUploadStatus.PARSING:
+            raise InvalidTransition(
+                self.status.value,
+                TimetableUploadStatus.PREVIEW_READY.value,
+                "TimetableUpload",
+            )
+        self.status = TimetableUploadStatus.PREVIEW_READY
+        self.parse_report = parse_report
+
+    def confirm(self) -> None:
+        if self.status != TimetableUploadStatus.PREVIEW_READY:
+            raise InvalidTransition(
+                self.status.value,
+                TimetableUploadStatus.CONFIRMED.value,
+                "TimetableUpload",
+            )
+        self.status = TimetableUploadStatus.CONFIRMED
+
+    def fail(self, reason: str) -> None:
+        if self.status in (TimetableUploadStatus.CONFIRMED, TimetableUploadStatus.FAILED):
+            raise InvalidTransition(
+                self.status.value,
+                TimetableUploadStatus.FAILED.value,
+                "TimetableUpload",
+            )
+        self.status = TimetableUploadStatus.FAILED
+        self.failure_reason = reason
+
 
 
 @dataclass

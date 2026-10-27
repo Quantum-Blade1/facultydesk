@@ -114,3 +114,12 @@ class TaskStatus(StrEnum):
     IN_PROGRESS = "IN_PROGRESS"
     DONE = "DONE"
     ARCHIVED = "ARCHIVED"
+
+
+class TimetableUploadStatus(StrEnum):
+    UPLOADED = "UPLOADED"
+    PARSING = "PARSING"
+    PREVIEW_READY = "PREVIEW_READY"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+

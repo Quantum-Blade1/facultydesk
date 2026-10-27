@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from minio import Minio
 from sqlalchemy import text
 
-from app.api.routers import auth_router, directory_router
+from app.api.routers import auth_router, directory_router, timetable_router
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.errors import FacultyDeskError
@@ -40,6 +40,7 @@ app.add_middleware(RequestIdMiddleware)
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(directory_router, prefix="/api")
+app.include_router(timetable_router, prefix="/api")
 
 
 
