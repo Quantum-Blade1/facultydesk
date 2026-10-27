@@ -45,8 +45,7 @@ class UpdateFacultyUseCase:
                     )
                     if existing is not None and existing.id != profile.id:
                         msg = (
-                            f"Initials '{new_initials.value}' are already taken "
-                            f"in this department"
+                            f"Initials '{new_initials.value}' are already taken in this department"
                         )
                         raise ConflictError(msg)
                     profile.initials = new_initials

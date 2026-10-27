@@ -5,14 +5,15 @@ Revises: 9bad995bed3e
 Create Date: 2026-10-27 19:36:36.043661
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = '1c007141bd6c'
-down_revision: str | Sequence[str] | None = '9bad995bed3e'
+revision: str = "1c007141bd6c"
+down_revision: str | Sequence[str] | None = "9bad995bed3e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

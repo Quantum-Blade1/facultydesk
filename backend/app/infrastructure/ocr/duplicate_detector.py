@@ -9,9 +9,7 @@ from app.domain.entities import Event
 
 
 def normalize_title(title: str) -> str:
-    cleaned = re.sub(
-        r"^(?:sub|subject|circular|ref)\s*[:\-]\s*", "", title, flags=re.IGNORECASE
-    )
+    cleaned = re.sub(r"^(?:sub|subject|circular|ref)\s*[:\-]\s*", "", title, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(?:dr|prof|mr|ms|mrs)\b\.?", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"[^\w\s]", " ", cleaned)
     return " ".join(cleaned.lower().split())

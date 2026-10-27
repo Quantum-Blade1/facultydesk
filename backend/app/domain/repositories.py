@@ -141,15 +141,11 @@ class EventRepository(ABC):
         """Remove an event by its identifier."""
 
     @abstractmethod
-    async def get_by_slot_and_date(
-        self, slot_id: UUID, recurrence_date: date
-    ) -> Event | None:
+    async def get_by_slot_and_date(self, slot_id: UUID, recurrence_date: date) -> Event | None:
         """Fetch event by timetable slot identifier and occurrence date."""
 
     @abstractmethod
-    async def delete_future_by_slot(
-        self, slot_id: UUID, from_date: date
-    ) -> None:
+    async def delete_future_by_slot(self, slot_id: UUID, from_date: date) -> None:
         """Delete future materialised timetable occurrences for a slot."""
 
     @abstractmethod
@@ -181,9 +177,7 @@ class NotificationRepository(ABC):
         """Fetch notification by unique identifier."""
 
     @abstractmethod
-    async def get_by_idempotency_key(
-        self, idempotency_key: str
-    ) -> ScheduledNotification | None:
+    async def get_by_idempotency_key(self, idempotency_key: str) -> ScheduledNotification | None:
         """Fetch notification by unique idempotency key."""
 
     @abstractmethod
@@ -191,9 +185,7 @@ class NotificationRepository(ABC):
         """List pending notifications due to fire at or before up_to_utc."""
 
     @abstractmethod
-    async def claim_due_batch(
-        self, up_to_utc: datetime, limit: int
-    ) -> list[ScheduledNotification]:
+    async def claim_due_batch(self, up_to_utc: datetime, limit: int) -> list[ScheduledNotification]:
         """Claim due notifications via SELECT FOR UPDATE SKIP LOCKED, marking them SENDING."""
 
     @abstractmethod
@@ -215,9 +207,19 @@ class NotificationRepository(ABC):
         """Cancel all pending notifications for a target."""
 
     @abstractmethod
-    async def save(
-        self, notification: ScheduledNotification
-    ) -> ScheduledNotification:
+    async def count_by_status(self) -> dict[str, int]:
+        """Return counts of notifications grouped by status."""
+
+    @abstractmethod
+    async def list_delivered_lateness_samples(self, limit: int = 5000) -> list[float]:
+        """Return sequence of lateness observations in seconds for delivered notifications."""
+
+    @abstractmethod
+    async def list_dead_letters(self, limit: int = 50) -> list[ScheduledNotification]:
+        """Return list of failed notifications awaiting administrative review or retry."""
+
+    @abstractmethod
+    async def save(self, notification: ScheduledNotification) -> ScheduledNotification:
         """Persist a scheduled notification."""
 
 
@@ -323,9 +325,7 @@ class AuditLogRepository(ABC):
         """Persist an audit log entry."""
 
     @abstractmethod
-    async def list_by_resource(
-        self, resource_type: str, resource_id: str
-    ) -> list[AuditLog]:
+    async def list_by_resource(self, resource_type: str, resource_id: str) -> list[AuditLog]:
         """List audit entries associated with a specific resource."""
 
 
@@ -389,7 +389,6 @@ class RoomRepository(ABC):
         """Persist a room."""
 
 
-
 class TimetableUploadRepository(ABC):
     @abstractmethod
     async def get_by_id(self, upload_id: UUID) -> TimetableUpload | None:
@@ -402,7 +401,6 @@ class TimetableUploadRepository(ABC):
     @abstractmethod
     async def save(self, upload: TimetableUpload) -> TimetableUpload:
         """Persist a timetable upload."""
-
 
 
 class TimetableSlotRepository(ABC):

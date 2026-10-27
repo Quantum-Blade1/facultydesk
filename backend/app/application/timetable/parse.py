@@ -18,9 +18,7 @@ class ParseTimetableUseCase:
 
     async def execute(self, upload_id: UUID) -> dict[str, Any]:
         async with self._uow:
-            upload: TimetableUpload | None = await self._uow.timetable_uploads.get_by_id(
-                upload_id
-            )
+            upload: TimetableUpload | None = await self._uow.timetable_uploads.get_by_id(upload_id)
             if upload is None:
                 raise EntityNotFound("TimetableUpload", str(upload_id))
 
@@ -42,9 +40,7 @@ class ParseTimetableUseCase:
             raise
 
         async with self._uow:
-            profiles = await self._uow.faculty_profiles.list_by_department(
-                upload.department_id
-            )
+            profiles = await self._uow.faculty_profiles.list_by_department(upload.department_id)
             resolver = InitialsResolver(profiles)
 
             preview_slots: list[dict[str, Any]] = []

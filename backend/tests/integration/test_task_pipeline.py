@@ -72,7 +72,7 @@ async def test_task_creation_and_assignment_pipeline() -> None:
             user_id=fid,
             department_id=dept_id,
             full_name=f"Faculty Member {i}",
-            initials=Initials(f"FM{chr(65+i)}"),
+            initials=Initials(f"FM{chr(65 + i)}"),
             email=user.email,
         )
         faculty_users.append(user)
@@ -215,7 +215,8 @@ async def test_task_priority_sorting_and_completion_cancels_alerts() -> None:
         await uow.commit()
 
         active_notifs = [
-            n for n in await uow.notifications.list_by_target(task_urgent.id)
+            n
+            for n in await uow.notifications.list_by_target(task_urgent.id)
             if n.status == NotificationStatus.PENDING
         ]
         assert len(active_notifs) > 0

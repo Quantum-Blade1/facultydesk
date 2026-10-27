@@ -99,9 +99,7 @@ async def test_timetable_upload_parse_and_confirm_pipeline() -> None:
     xlsx_path = SAMPLES_DIR / "standard_timetable.xlsx"
     xlsx_bytes = xlsx_path.read_bytes()
 
-    upload_uc = UploadTimetableUseCase(
-        SqlAlchemyUnitOfWork(async_session_factory), storage, clock
-    )
+    upload_uc = UploadTimetableUseCase(SqlAlchemyUnitOfWork(async_session_factory), storage, clock)
     upload_id = await upload_uc.execute(
         principal=hod_principal,
         department_id=dept_id,
@@ -117,9 +115,7 @@ async def test_timetable_upload_parse_and_confirm_pipeline() -> None:
         assert upload is not None
         assert upload.status == TimetableUploadStatus.UPLOADED
 
-    parse_uc = ParseTimetableUseCase(
-        SqlAlchemyUnitOfWork(async_session_factory), storage
-    )
+    parse_uc = ParseTimetableUseCase(SqlAlchemyUnitOfWork(async_session_factory), storage)
     report = await parse_uc.execute(upload_id)
 
     assert report["total_slots"] == 9
@@ -131,9 +127,7 @@ async def test_timetable_upload_parse_and_confirm_pipeline() -> None:
         assert upload is not None
         assert upload.status == TimetableUploadStatus.PREVIEW_READY
 
-    confirm_uc = ConfirmTimetableUseCase(
-        SqlAlchemyUnitOfWork(async_session_factory), clock
-    )
+    confirm_uc = ConfirmTimetableUseCase(SqlAlchemyUnitOfWork(async_session_factory), clock)
     slots_created, event = await confirm_uc.execute(hod_principal, upload_id)
 
     assert slots_created == 9

@@ -36,4 +36,3 @@ class ClashDetectedError(ConflictError):
     def __init__(self, message: str, clashes: list[dict[str, str]] | None = None) -> None:
         super().__init__(message)
         self.clashes = clashes or []
-

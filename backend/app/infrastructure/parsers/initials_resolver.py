@@ -40,9 +40,7 @@ class InitialsResolver:
                 error_detail="Empty initials token",
             )
 
-        exact_matches = [
-            p for p in self._profiles if p.initials.value.upper() == token
-        ]
+        exact_matches = [p for p in self._profiles if p.initials.value.upper() == token]
         if len(exact_matches) == 1:
             match = exact_matches[0]
             return ResolutionOutcome(
@@ -58,9 +56,7 @@ class InitialsResolver:
             )
 
         alias_matches = [
-            p
-            for p in self._profiles
-            if any(alias.strip().upper() == token for alias in p.aliases)
+            p for p in self._profiles if any(alias.strip().upper() == token for alias in p.aliases)
         ]
         if len(alias_matches) == 1:
             match = alias_matches[0]

@@ -2560,6 +2560,82 @@
         }
       }
     },
+    "/api/admin/metrics": {
+      "get": {
+        "tags": [
+          "Admin & Hardening"
+        ],
+        "summary": "Get System Metrics",
+        "description": "Retrieve system reliability metrics, queue depth, lateness percentiles, and dead-letters.",
+        "operationId": "get_system_metrics_api_admin_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMetricsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/notifications/{notification_id}/retry": {
+      "post": {
+        "tags": [
+          "Admin & Hardening"
+        ],
+        "summary": "Retry Failed Notification",
+        "description": "Retry a failed dead-letter notification by resetting status to PENDING.",
+        "operationId": "retry_failed_notification_api_admin_notifications__notification_id__retry_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Notification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadLetterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -2638,6 +2714,38 @@
           "timezone"
         ],
         "title": "AcademicTermResponse"
+      },
+      "AdminMetricsResponse": {
+        "properties": {
+          "notifications_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Notifications By Status"
+          },
+          "queue_depth": {
+            "$ref": "#/components/schemas/QueueDepthResponse"
+          },
+          "lateness_percentiles_seconds": {
+            "$ref": "#/components/schemas/LatenessPercentilesResponse"
+          },
+          "failed_dead_letters": {
+            "items": {
+              "$ref": "#/components/schemas/DeadLetterResponse"
+            },
+            "type": "array",
+            "title": "Failed Dead Letters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "notifications_by_status",
+          "queue_depth",
+          "lateness_percentiles_seconds",
+          "failed_dead_letters"
+        ],
+        "title": "AdminMetricsResponse"
       },
       "AssignTaskRequest": {
         "properties": {
@@ -3425,6 +3533,65 @@
         ],
         "title": "CurrentUserResponse"
       },
+      "DeadLetterResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Target Id"
+          },
+          "target_kind": {
+            "type": "string",
+            "title": "Target Kind"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "fire_at_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fire At Utc"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "target_id",
+          "target_kind",
+          "user_id",
+          "channel",
+          "fire_at_utc",
+          "attempts",
+          "last_error"
+        ],
+        "title": "DeadLetterResponse"
+      },
       "DeletePushSubscriptionRequest": {
         "properties": {
           "endpoint": {
@@ -3753,6 +3920,34 @@
         ],
         "title": "HolidayResponse"
       },
+      "LatenessPercentilesResponse": {
+        "properties": {
+          "p50": {
+            "type": "number",
+            "title": "P50"
+          },
+          "p95": {
+            "type": "number",
+            "title": "P95"
+          },
+          "p99": {
+            "type": "number",
+            "title": "P99"
+          },
+          "sample_size": {
+            "type": "integer",
+            "title": "Sample Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "p50",
+          "p95",
+          "p99",
+          "sample_size"
+        ],
+        "title": "LatenessPercentilesResponse"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -3917,6 +4112,24 @@
           "endpoint"
         ],
         "title": "PushSubscriptionResponse"
+      },
+      "QueueDepthResponse": {
+        "properties": {
+          "celery_default": {
+            "type": "integer",
+            "title": "Celery Default"
+          },
+          "due_pending_notifications": {
+            "type": "integer",
+            "title": "Due Pending Notifications"
+          }
+        },
+        "type": "object",
+        "required": [
+          "celery_default",
+          "due_pending_notifications"
+        ],
+        "title": "QueueDepthResponse"
       },
       "QuietHoursResponse": {
         "properties": {

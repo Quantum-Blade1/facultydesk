@@ -2,8 +2,9 @@ from datetime import date, datetime
 from typing import Self
 from uuid import UUID
 
+import structlog
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
@@ -84,6 +85,8 @@ from app.infrastructure.db.models import (
     UserModel,
 )
 
+logger = structlog.get_logger(__name__)
+
 
 def department_to_domain(m: DepartmentModel) -> Department:
     return Department(id=m.id, code=m.code, name=m.name)
@@ -156,7 +159,6 @@ def event_to_domain(m: EventModel) -> Event:
         recurrence_date=m.recurrence_date,
         attendees=attendees,
     )
-
 
 
 def circular_to_domain(m: CircularModel) -> Circular:
@@ -468,7 +470,6 @@ class FacultyProfileRepositoryImpl(FacultyProfileRepository):
         return faculty_profile_to_domain(model)
 
 
-
 class AcademicTermRepositoryImpl(AcademicTermRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -647,9 +648,7 @@ class EventRepositoryImpl(EventRepository):
         await self._session.execute(stmt)
         await self._session.flush()
 
-    async def get_by_slot_and_date(
-        self, slot_id: UUID, recurrence_date: date
-    ) -> Event | None:
+    async def get_by_slot_and_date(self, slot_id: UUID, recurrence_date: date) -> Event | None:
         stmt = (
             select(EventModel)
             .options(selectinload(EventModel.attendees))
@@ -662,9 +661,7 @@ class EventRepositoryImpl(EventRepository):
         model = result.scalar_one_or_none()
         return event_to_domain(model) if model else None
 
-    async def delete_future_by_slot(
-        self, slot_id: UUID, from_date: date
-    ) -> None:
+    async def delete_future_by_slot(self, slot_id: UUID, from_date: date) -> None:
         stmt = sa_delete(EventModel).where(
             EventModel.source_id == slot_id,
             EventModel.recurrence_date >= from_date,
@@ -688,7 +685,6 @@ class EventRepositoryImpl(EventRepository):
         await self._session.flush()
 
 
-
 class CircularRepositoryImpl(CircularRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -710,6 +706,7 @@ class CircularRepositoryImpl(CircularRepository):
 
     async def save(self, circular: Circular) -> Circular:
         model = await self._session.get(CircularModel, circular.id)
+        old_status = model.status if model else None
         if model is None:
             model = CircularModel(
                 id=circular.id,
@@ -729,6 +726,13 @@ class CircularRepositoryImpl(CircularRepository):
             model.status = circular.status.value
             model.failure_reason = circular.failure_reason
         await self._session.flush()
+        if old_status != model.status:
+            logger.info(
+                "circular_state_transition",
+                circular_id=str(model.id),
+                from_status=old_status,
+                to_status=model.status,
+            )
         return circular_to_domain(model)
 
 
@@ -744,9 +748,7 @@ class NotificationRepositoryImpl(NotificationRepository):
         model = result.scalar_one_or_none()
         return notification_to_domain(model) if model else None
 
-    async def get_by_idempotency_key(
-        self, idempotency_key: str
-    ) -> ScheduledNotification | None:
+    async def get_by_idempotency_key(self, idempotency_key: str) -> ScheduledNotification | None:
         stmt = select(ScheduledNotificationModel).where(
             ScheduledNotificationModel.idempotency_key == idempotency_key
         )
@@ -766,9 +768,7 @@ class NotificationRepositoryImpl(NotificationRepository):
         result = await self._session.execute(stmt)
         return [notification_to_domain(m) for m in result.scalars().all()]
 
-    async def claim_due_batch(
-        self, up_to_utc: datetime, limit: int
-    ) -> list[ScheduledNotification]:
+    async def claim_due_batch(self, up_to_utc: datetime, limit: int) -> list[ScheduledNotification]:
         stmt = (
             select(ScheduledNotificationModel)
             .where(
@@ -782,6 +782,13 @@ class NotificationRepositoryImpl(NotificationRepository):
         result = await self._session.execute(stmt)
         models = list(result.scalars().all())
         for m in models:
+            logger.info(
+                "notification_state_transition",
+                notification_id=str(m.id),
+                from_status=m.status,
+                to_status=NotificationStatus.SENDING.value,
+                channel=m.channel,
+            )
             m.status = NotificationStatus.SENDING.value
             m.attempts += 1
         await self._session.flush()
@@ -832,10 +839,46 @@ class NotificationRepositoryImpl(NotificationRepository):
         result = await self._session.execute(stmt)
         return len(result.scalars().all())
 
-    async def save(
-        self, notification: ScheduledNotification
-    ) -> ScheduledNotification:
+    async def count_by_status(self) -> dict[str, int]:
+        stmt = select(
+            ScheduledNotificationModel.status,
+            func.count(ScheduledNotificationModel.id),
+        ).group_by(ScheduledNotificationModel.status)
+        result = await self._session.execute(stmt)
+        return {str(status): int(count) for status, count in result.all()}
+
+    async def list_delivered_lateness_samples(self, limit: int = 5000) -> list[float]:
+        stmt = (
+            select(
+                func.extract(
+                    "epoch",
+                    ScheduledNotificationModel.delivered_at_utc
+                    - ScheduledNotificationModel.fire_at_utc,
+                )
+            )
+            .where(
+                ScheduledNotificationModel.status == NotificationStatus.SENT.value,
+                ScheduledNotificationModel.delivered_at_utc.is_not(None),
+            )
+            .order_by(ScheduledNotificationModel.delivered_at_utc.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return [float(x) for x in result.scalars().all() if x is not None]
+
+    async def list_dead_letters(self, limit: int = 50) -> list[ScheduledNotification]:
+        stmt = (
+            select(ScheduledNotificationModel)
+            .where(ScheduledNotificationModel.status == NotificationStatus.FAILED.value)
+            .order_by(ScheduledNotificationModel.fire_at_utc.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return [notification_to_domain(m) for m in result.scalars().all()]
+
+    async def save(self, notification: ScheduledNotification) -> ScheduledNotification:
         model = await self._session.get(ScheduledNotificationModel, notification.id)
+        old_status = model.status if model else None
         if model is None:
             model = ScheduledNotificationModel(
                 id=notification.id,
@@ -861,6 +904,14 @@ class NotificationRepositoryImpl(NotificationRepository):
             model.delivered_at_utc = notification.delivered_at_utc
             model.status = notification.status.value
         await self._session.flush()
+        if old_status != model.status:
+            logger.info(
+                "notification_state_transition",
+                notification_id=str(model.id),
+                from_status=old_status,
+                to_status=model.status,
+                channel=model.channel,
+            )
         return notification_to_domain(model)
 
 
@@ -1118,9 +1169,7 @@ class AuditLogRepositoryImpl(AuditLogRepository):
         await self._session.flush()
         return audit_log_to_domain(model)
 
-    async def list_by_resource(
-        self, resource_type: str, resource_id: str
-    ) -> list[AuditLog]:
+    async def list_by_resource(self, resource_type: str, resource_id: str) -> list[AuditLog]:
         stmt = (
             select(AuditLogModel)
             .where(
@@ -1268,7 +1317,6 @@ class RoomRepositoryImpl(RoomRepository):
         result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
         return room_to_domain(model) if model else None
-
 
     async def save(self, room: Room) -> Room:
         model = await self._session.get(RoomModel, room.id)

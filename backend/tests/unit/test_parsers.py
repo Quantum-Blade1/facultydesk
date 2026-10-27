@@ -34,9 +34,7 @@ def test_xlsx_merged_cell_period_expansion() -> None:
 
     assert len(result.candidates) >= 3
 
-    merged_slot = next(
-        c for c in result.candidates if c.course_code == "DBMS Lab"
-    )
+    merged_slot = next(c for c in result.candidates if c.course_code == "DBMS Lab")
     assert merged_slot.weekday == 1
     assert merged_slot.start_time == time(10, 0)
     assert merged_slot.end_time == time(11, 55)

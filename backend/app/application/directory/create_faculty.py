@@ -50,8 +50,7 @@ class CreateFacultyUseCase:
             )
             if existing_init is not None:
                 msg = (
-                    f"Initials '{initials.value}' are already registered "
-                    f"in department {dept.code}"
+                    f"Initials '{initials.value}' are already registered in department {dept.code}"
                 )
                 raise ConflictError(msg)
 

@@ -30,9 +30,7 @@ class ConfirmTimetableUseCase:
         upload_id: UUID,
     ) -> tuple[int, TimetableConfirmed]:
         async with self._uow:
-            upload: TimetableUpload | None = await self._uow.timetable_uploads.get_by_id(
-                upload_id
-            )
+            upload: TimetableUpload | None = await self._uow.timetable_uploads.get_by_id(upload_id)
             if upload is None:
                 raise EntityNotFound("TimetableUpload", str(upload_id))
 
@@ -75,9 +73,7 @@ class ConfirmTimetableUseCase:
                 sec_name = (slot_data.get("section_name") or "A").strip()
                 sec_key = (course.id, sec_name)
                 if sec_key not in section_cache:
-                    sec = await self._uow.sections.get_by_course_and_name(
-                        course.id, sec_name
-                    )
+                    sec = await self._uow.sections.get_by_course_and_name(course.id, sec_name)
                     if sec is None:
                         sec = Section(id=uuid4(), course_id=course.id, name=sec_name)
                         sec = await self._uow.sections.save(sec)

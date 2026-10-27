@@ -73,7 +73,6 @@ class FreeSlotFinder:
             if cursor < w_end and (w_end - cursor) >= min_delta:
                 free_slots.append((cursor, w_end))
 
-
             curr += timedelta(days=1)
 
         return free_slots

@@ -81,7 +81,7 @@ class PdfTimetableParser(TimetableParser):
                                 continue
 
                             cell_text = cell_val.strip()
-                            cell_ref = f"P{page_idx}_T{tbl_idx}_R{r_idx+1}_C{c_idx+1}"
+                            cell_ref = f"P{page_idx}_T{tbl_idx}_R{r_idx + 1}_C{c_idx + 1}"
                             tokenized = tokenize_cell(cell_text)
                             if not tokenized:
                                 unparsed.append(

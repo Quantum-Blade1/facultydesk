@@ -13,6 +13,7 @@ from app.api.routers import (
     calendar_router,
     circulars_router,
     directory_router,
+    metrics_router,
     reminders_router,
     tasks_router,
     timetable_router,
@@ -53,8 +54,7 @@ app.include_router(calendar_router, prefix="/api")
 app.include_router(reminders_router, prefix="/api")
 app.include_router(circulars_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
-
-
+app.include_router(metrics_router, prefix="/api")
 
 
 @app.exception_handler(FacultyDeskError)

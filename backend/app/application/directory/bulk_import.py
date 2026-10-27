@@ -124,10 +124,8 @@ class BulkImportFacultyUseCase:
                     )
                     continue
 
-                existing_by_init = (
-                    await self._uow.faculty_profiles.get_by_department_and_initials(
-                        department_id, initials
-                    )
+                existing_by_init = await self._uow.faculty_profiles.get_by_department_and_initials(
+                    department_id, initials
                 )
                 existing_user = await self._uow.users.get_by_email(email)
 
@@ -220,9 +218,7 @@ class BulkImportFacultyUseCase:
 
         return report
 
-    def _parse_file(
-        self, file_content: bytes, file_extension: str
-    ) -> list[dict[str, str]]:
+    def _parse_file(self, file_content: bytes, file_extension: str) -> list[dict[str, str]]:
         ext = file_extension.lower().lstrip(".")
         if ext == "csv":
             text = file_content.decode("utf-8-sig", errors="replace")

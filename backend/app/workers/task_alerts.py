@@ -45,9 +45,7 @@ async def _run_schedule_daily_overdue_alerts() -> int:
                 if existing is not None:
                     continue
 
-                fire_local = tz.fromutc(now_utc).replace(
-                    hour=9, minute=0, second=0, microsecond=0
-                )
+                fire_local = tz.fromutc(now_utc).replace(hour=9, minute=0, second=0, microsecond=0)
                 fire_utc = fire_local.astimezone(ZoneInfo("UTC"))
                 scheduled_fire_time = fire_utc if fire_utc > now_utc else now_utc
 
@@ -103,9 +101,7 @@ async def _run_schedule_hod_escalations() -> int:
                 if existing is not None:
                     continue
 
-                fire_local = tz.fromutc(now_utc).replace(
-                    hour=9, minute=30, second=0, microsecond=0
-                )
+                fire_local = tz.fromutc(now_utc).replace(hour=9, minute=30, second=0, microsecond=0)
                 fire_utc = fire_local.astimezone(ZoneInfo("UTC"))
                 scheduled_fire = fire_utc if fire_utc > now_utc else now_utc
 

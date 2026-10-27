@@ -95,9 +95,7 @@ class FacultyProfileModel(Base):
 
 class AcademicTermModel(Base):
     __tablename__ = "academic_terms"
-    __table_args__ = (
-        CheckConstraint("end_date > start_date", name="ck_academic_terms_dates"),
-    )
+    __table_args__ = (CheckConstraint("end_date > start_date", name="ck_academic_terms_dates"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -134,9 +132,7 @@ class RoomModel(Base):
 
 class CourseModel(Base):
     __tablename__ = "courses"
-    __table_args__ = (
-        UniqueConstraint("department_id", "code", name="uq_courses_department_code"),
-    )
+    __table_args__ = (UniqueConstraint("department_id", "code", name="uq_courses_department_code"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     department_id: Mapped[uuid.UUID] = mapped_column(
@@ -275,9 +271,7 @@ class CircularModel(Base):
 
 class ScheduledNotificationModel(Base):
     __tablename__ = "scheduled_notifications"
-    __table_args__ = (
-        Index("ix_notifications_status_fire_at", "status", "fire_at_utc"),
-    )
+    __table_args__ = (Index("ix_notifications_status_fire_at", "status", "fire_at_utc"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     target_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
@@ -361,9 +355,7 @@ class TaskModel(Base):
     assigner_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
-    parent_assignment_id: Mapped[uuid.UUID | None] = mapped_column(
-        nullable=True
-    )
+    parent_assignment_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     recurrence: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -395,9 +387,7 @@ class TaskTemplateModel(Base):
 
 class AuditLogModel(Base):
     __tablename__ = "audit_logs"
-    __table_args__ = (
-        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
-    )
+    __table_args__ = (Index("ix_audit_logs_resource", "resource_type", "resource_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -417,9 +407,7 @@ class AuditLogModel(Base):
 
 class RefreshTokenModel(Base):
     __tablename__ = "refresh_tokens"
-    __table_args__ = (
-        Index("ix_refresh_tokens_family", "family_id"),
-    )
+    __table_args__ = (Index("ix_refresh_tokens_family", "family_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(

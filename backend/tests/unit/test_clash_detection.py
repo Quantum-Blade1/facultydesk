@@ -103,13 +103,11 @@ def test_worked_example_from_maths_md() -> None:
     clashes = detector.detect_clashes([e1, e2, e3, e4])
 
     clash_pairs = {
-        (min(a, b, key=lambda u: u.bytes), max(a, b, key=lambda u: u.bytes))
-        for a, b in clashes
+        (min(a, b, key=lambda u: u.bytes), max(a, b, key=lambda u: u.bytes)) for a, b in clashes
     }
 
     def canonical_pair(u1: UUID, u2: UUID) -> tuple[UUID, UUID]:
         return (min(u1, u2, key=lambda u: u.bytes), max(u1, u2, key=lambda u: u.bytes))
-
 
     expected = {
         canonical_pair(id1, id2),

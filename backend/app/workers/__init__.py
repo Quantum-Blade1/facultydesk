@@ -25,4 +25,3 @@ __all__ = [
     "schedule_daily_overdue_alerts",
     "schedule_hod_escalation_alerts",
 ]
-

@@ -24,13 +24,9 @@ class CompositeNotifier(Notifier):
         uow: UnitOfWork,
     ) -> None:
         if notification.channel == NotificationChannel.EMAIL:
-            await self._email.send(
-                notification, payload, recipient_user, recipient_profile, uow
-            )
+            await self._email.send(notification, payload, recipient_user, recipient_profile, uow)
         elif notification.channel == NotificationChannel.PUSH:
-            await self._push.send(
-                notification, payload, recipient_user, recipient_profile, uow
-            )
+            await self._push.send(notification, payload, recipient_user, recipient_profile, uow)
 
 
 __all__ = [

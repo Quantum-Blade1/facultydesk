@@ -1387,3 +1387,107 @@ $\operatorname{ZCARD} = 4 < 5 \implies \text{ALLOW}$.
 
 6. **Proof Plan**:
 - `test_sliding_window_rate_limiter`: Unit/integration test proving requests up to $L$ succeed and request $L+1$ within $W$ returns 429.
+
+## 11. Hardening, Observability and Reliability
+
+### 11.1 Dispatch Lateness Percentile Computation
+
+1. **Idea**:
+Dispatch lateness measures the delay between when a reminder notification was scheduled to fire and when it was actually transmitted by the worker. To monitor SLA compliance ($p_{95} \le 60\text{s}$), the metrics subsystem calculates non-parametric percentiles over delivered notifications.
+
+2. **Formula and Invariants**:
+Let $S = (n_1, n_2, \dots, n_N)$ be the set of successfully delivered notifications in the sample window.
+For each notification $n_i$, the observed lateness $L_i \in \mathbb{R}_{\ge 0}$ in seconds is:
+$$L_i = \max(0.0, (t_{\text{delivered}, i} - t_{\text{scheduled}, i}))$$
+
+Sort the sequence into non-decreasing order:
+$$L_{(1)} \le L_{(2)} \le \dots \le L_{(N)}$$
+
+For a requested percentile rank $p \in (0, 100)$, the sample index position $k$ is computed using the linear interpolation rank formula (NIST / method 8):
+$$k = 1 + \frac{p}{100} \cdot (N - 1)$$
+Let $j = \lfloor k \rfloor$ and fractional part $f = k - j$.
+The estimated percentile $\hat{P}_p$ is:
+$$\hat{P}_p = \begin{cases}
+0.0 & \text{if } N = 0 \\
+L_{(1)} & \text{if } N = 1 \\
+L_{(j)} + f \cdot (L_{(j+1)} - L_{(j)}) & \text{if } 1 \le j < N \\
+L_{(N)} & \text{if } j \ge N
+\end{cases}$$
+
+Target Bound:
+$$\hat{P}_{95} \le 60.0\text{ seconds}$$
+
+3. **Worked Example**:
+$N = 5$ lateness observations: $\{12.0, 15.0, 18.0, 22.0, 45.0\}$.
+Compute $p = 95$:
+$$k = 1 + \frac{95}{100} \cdot (5 - 1) = 1 + 3.8 = 4.8$$
+$$j = 4, \quad f = 0.8$$
+$$\hat{P}_{95} = L_{(4)} + 0.8 \cdot (L_{(5)} - L_{(4)}) = 22.0 + 0.8 \cdot (45.0 - 22.0) = 22.0 + 18.4 = 40.4\text{ seconds}$$
+Since $40.4\text{s} \le 60.0\text{s}$, the dispatch latency meets the production SLA bound.
+
+4. **Edge Cases**:
+- $N = 0$: Returns $0.0\text{s}$ for all percentiles.
+- $N = 1$: Returns $L_{(1)}$ for all percentiles.
+- Negative lateness (clock drift on worker): Clamped to $0.0\text{s}$ via $\max(0.0, \dots)$.
+
+5. **Complexity**:
+- Time complexity: $O(N \log N)$ to sort $N$ elements; with bounded window $N \le 10,000$, execution time $< 5\text{ms}$.
+- Space complexity: $O(N)$ memory buffer for lateness floats.
+
+6. **Proof Plan**:
+- `test_lateness_percentiles_calculation`: Unit test proving interpolation across edge cases ($N=0, 1, 5, 100$).
+
+### 11.2 Backup Retention Arithmetic & Bounded Pruning
+
+1. **Idea**:
+Database backups are generated nightly at 02:00 UTC, gzipped, and uploaded to the MinIO `backups` bucket. A retention pruning policy keeps exactly the last 14 days of backups to balance point-in-time recovery with bounded secondary storage consumption.
+
+2. **Formula and Invariants**:
+Let $R = 14\text{ days}$ be the retention horizon.
+Let $T_{\text{horizon}} = R \times 86400 = 1,209,600\text{ seconds}$.
+At inspection time $t_{\text{now}}$, an archive object $A$ with creation timestamp $t_A$ is evaluated by the pruning predicate $\operatorname{Prune}(A)$:
+$$\operatorname{Prune}(A) = (t_{\text{now}} - t_A) > T_{\text{horizon}}$$
+
+Storage Footprint Upper Bound:
+Let $S_{\text{daily}}$ be the uncompressed database size ($S_{\text{daily}} \le 200\text{ MB}$).
+Let $\rho \approx 0.20$ be the gzip compression ratio on relational SQL dumps.
+The daily archive size is $S_A \approx 40\text{ MB}$.
+The maximum total backup storage volume $S_{\text{total}}$ is strictly bounded:
+$$S_{\text{total}} \le (R + 1) \cdot S_A \le 15 \times 40\text{ MB} = 600\text{ MB}$$
+
+3. **Worked Example**:
+- Snapshot created at: `2026-10-10T02:00:00Z`
+- Current time: `2026-10-28T02:00:00Z`
+- $\Delta t = 18\text{ days} = 1,555,200\text{s}$.
+- $\Delta t > 1,209,600\text{s} \implies \operatorname{Prune}(A) = \text{True}$.
+- Result: Archive deleted from MinIO `backups` bucket.
+
+4. **Edge Cases**:
+- Clock skew or timezone mismatch: Timestamps parsed strictly as UTC epoch seconds.
+- Single surviving backup: If total backups $\le 1$, pruning is skipped to guarantee at least one valid recovery snapshot exists regardless of age.
+
+5. **Complexity**:
+- Time complexity: $O(M)$ where $M$ is the number of stored backup objects ($M \le 30$).
+- Space complexity: $O(M)$.
+
+6. **Proof Plan**:
+- `test_backup_retention_pruning`: Unit test validating pruning of archives older than 14 days and preservation of archives within the window.
+
+### 11.3 Upload Decompression Bomb and Page Count Limits
+
+1. **Idea**:
+Malicious or malformed files can consume immense RAM and CPU during image decoding or PDF text extraction. We enforce strict geometric and pagination bounds before decoding pixel arrays or processing document structures.
+
+2. **Formulas and Invariants**:
+- **Pixel Count Limit (Decompression Bomb)**:
+  Let image width be $W$ pixels and height be $H$ pixels.
+  The total pixel count $\Pi = W \times H$.
+  $$\Pi \le \Pi_{\text{max}} = 25,000,000\text{ pixels} \quad (5000 \times 5000)$$
+  If $\Pi > \Pi_{\text{max}}$, the file is rejected with HTTP 422 Unprocessable Entity before allocating the RGB/RGBA buffer.
+- **PDF Page Count Limit**:
+  Let $P$ be the number of pages in the uploaded PDF document.
+  $$P \le P_{\text{max}} = 30\text{ pages}$$
+  Academic timetables and meeting circulars never legitimately exceed 30 pages. Documents exceeding $P_{\text{max}}$ are rejected immediately.
+- **Byte Size Limit**:
+  $$\text{File Size} \le 15 \times 1024 \times 1024\text{ bytes} \quad (15\text{ MB})$$
+

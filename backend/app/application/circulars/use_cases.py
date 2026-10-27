@@ -1,4 +1,3 @@
-import mimetypes
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -8,6 +7,7 @@ from app.application.calendar.use_cases import CreateEventUseCase
 from app.application.security.policy import Principal
 from app.core.clock import Clock
 from app.core.errors import NotFoundError, ValidationError
+from app.core.upload_guard import validate_upload_content
 from app.domain.entities import Circular, Event
 from app.domain.repositories import UnitOfWork
 from app.domain.value_objects import CircularStatus, EventKind, EventSource
@@ -27,7 +27,6 @@ ALLOWED_CIRCULAR_MIMES = {
     "image/jpeg",
     "image/jpg",
 }
-MAX_CIRCULAR_BYTES = 15 * 1024 * 1024
 
 
 class UploadCircularUseCase:
@@ -42,27 +41,17 @@ class UploadCircularUseCase:
         file_bytes: bytes,
         filename: str,
     ) -> Circular:
-        if len(file_bytes) > MAX_CIRCULAR_BYTES:
-            raise ValidationError(
-                f"File size exceeds 15 MB limit: {len(file_bytes)} bytes"
-            )
+        mime, ext = validate_upload_content(
+            file_bytes,
+            allowed_mimes={"application/pdf", "image/png", "image/jpeg"},
+        )
 
-        mime, _ = mimetypes.guess_type(filename)
-        if not mime or mime.lower() not in ALLOWED_CIRCULAR_MIMES:
-            if file_bytes.startswith(b"%PDF"):
-                mime = "application/pdf"
-            elif file_bytes.startswith(b"\x89PNG"):
-                mime = "image/png"
-            elif file_bytes.startswith(b"\xff\xd8"):
-                mime = "image/jpeg"
-            else:
-                raise ValidationError(f"Unsupported file format for circular: {mime}")
-
-        key = f"circulars/{department_id}/{uuid4().hex[:12]}_{filename}"
+        circular_id = uuid4()
+        key = f"circulars/{department_id}/{circular_id}{ext}"
         self._storage.upload_file(key, file_bytes, mime)
 
         circular = Circular(
-            id=uuid4(),
+            id=circular_id,
             file_key=key,
             status=CircularStatus.UPLOADED,
             extracted_fields={"department_id": str(department_id), "filename": filename},
@@ -101,9 +90,7 @@ class ProcessCircularUseCase:
             extracted_text = ""
             doc_confidence = 0.0
 
-            is_pdf = (
-                circular.file_key.endswith(".pdf") or file_bytes.startswith(b"%PDF")
-            )
+            is_pdf = circular.file_key.endswith(".pdf") or file_bytes.startswith(b"%PDF")
             if is_pdf:
                 has_text, text_content = has_pdf_text_layer(file_bytes)
                 if has_text:
@@ -124,16 +111,12 @@ class ProcessCircularUseCase:
             dept_id_str = circular.extracted_fields.get("department_id")
             dept_id = UUID(dept_id_str) if dept_id_str else None
             faculty_profiles = (
-                await uow.faculty_profiles.list_by_department(dept_id)
-                if dept_id
-                else []
+                await uow.faculty_profiles.list_by_department(dept_id) if dept_id else []
             )
 
             is_probable_dup = False
             probable_dup_id: UUID | None = None
-            temp_res = self._extractor.extract(
-                extracted_text, doc_confidence, faculty_profiles
-            )
+            temp_res = self._extractor.extract(extracted_text, doc_confidence, faculty_profiles)
 
             if temp_res.meeting_date and temp_res.extracted_time:
                 tz = ZoneInfo("Asia/Kolkata")
@@ -166,11 +149,7 @@ class ProcessCircularUseCase:
                 "department_id": str(dept_id) if dept_id else None,
                 "title": extraction.title,
                 "agenda": extraction.agenda,
-                "date": (
-                    extraction.meeting_date.isoformat()
-                    if extraction.meeting_date
-                    else None
-                ),
+                "date": (extraction.meeting_date.isoformat() if extraction.meeting_date else None),
                 "date_confidence": extraction.date_confidence,
                 "start_time": (
                     extraction.extracted_time.start_time.strftime("%H:%M")
@@ -183,9 +162,7 @@ class ProcessCircularUseCase:
                     else None
                 ),
                 "time_confidence": (
-                    extraction.extracted_time.confidence
-                    if extraction.extracted_time
-                    else 0.0
+                    extraction.extracted_time.confidence if extraction.extracted_time else 0.0
                 ),
                 "is_duration_assumed": (
                     extraction.extracted_time.is_assumed_duration
@@ -206,9 +183,7 @@ class ProcessCircularUseCase:
                     for a in extraction.attendees
                 ],
                 "review_reasons": extraction.review_reasons,
-                "probable_duplicate_event_id": (
-                    str(probable_dup_id) if probable_dup_id else None
-                ),
+                "probable_duplicate_event_id": (str(probable_dup_id) if probable_dup_id else None),
             }
 
             circular.ocr_text = extracted_text
@@ -219,16 +194,12 @@ class ProcessCircularUseCase:
                 assert extraction.meeting_date is not None
                 assert extraction.extracted_time is not None
                 start_dt = (
-                    datetime.combine(
-                        extraction.meeting_date, extraction.extracted_time.start_time
-                    )
+                    datetime.combine(extraction.meeting_date, extraction.extracted_time.start_time)
                     .replace(tzinfo=tz)
                     .astimezone(UTC)
                 )
                 end_dt = (
-                    datetime.combine(
-                        extraction.meeting_date, extraction.extracted_time.end_time
-                    )
+                    datetime.combine(extraction.meeting_date, extraction.extracted_time.end_time)
                     .replace(tzinfo=tz)
                     .astimezone(UTC)
                 )

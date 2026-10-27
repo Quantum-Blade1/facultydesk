@@ -1,19 +1,16 @@
-import re
 from uuid import UUID, uuid4
 
 from app.application.security.policy import AuthorisationPolicy, Principal
 from app.core.clock import Clock
 from app.core.errors import ConflictError
+from app.core.upload_guard import validate_upload_content
 from app.domain import (
     AuditLog,
-    InvariantViolation,
     TimetableUpload,
     TimetableUploadStatus,
     UnitOfWork,
 )
 from app.infrastructure.storage.minio_storage import MinioStorageService
-
-MAX_UPLOAD_SIZE = 15 * 1024 * 1024
 
 
 class UploadTimetableUseCase:
@@ -40,11 +37,7 @@ class UploadTimetableUseCase:
             principal, resource_dept_id=department_id, action="upload_timetable"
         )
 
-        if not file_bytes:
-            raise InvariantViolation("Uploaded file cannot be empty")
-
-        if len(file_bytes) > MAX_UPLOAD_SIZE:
-            raise InvariantViolation("File size exceeds 15 MB limit")
+        sniffed_mime, ext = validate_upload_content(file_bytes)
 
         async with self._uow:
             dept = await self._uow.departments.get_by_id(department_id)
@@ -55,14 +48,13 @@ class UploadTimetableUseCase:
             if term is None:
                 raise ConflictError(f"Academic term {academic_term_id} not found")
 
-            sanitized_name = re.sub(r"[^a-zA-Z0-9._-]", "_", file_name)
             upload_id = uuid4()
-            file_key = f"timetables/{upload_id}_{sanitized_name}"
+            file_key = f"timetables/{upload_id}{ext}"
 
             self._storage.upload_file(
                 key=file_key,
                 data=file_bytes,
-                content_type=content_type,
+                content_type=sniffed_mime,
             )
 
             now_utc = self._clock.now()

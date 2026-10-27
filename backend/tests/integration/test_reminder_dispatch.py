@@ -133,9 +133,7 @@ async def test_concurrency_dispatcher_skip_locked() -> None:
     await asyncio.gather(run_d1(), run_d2())
 
     target_ids_set = set(notification_ids)
-    target_sent = [
-        nid for nid in mock_notifier.sent_notification_ids if nid in target_ids_set
-    ]
+    target_sent = [nid for nid in mock_notifier.sent_notification_ids if nid in target_ids_set]
     assert len(target_sent) == 500
     assert len(set(target_sent)) == 500
     assert len(set(mock_notifier.sent_notification_ids)) == len(mock_notifier.sent_notification_ids)

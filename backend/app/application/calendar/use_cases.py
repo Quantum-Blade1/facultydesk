@@ -43,8 +43,6 @@ class MaterialiseTimetableEventsUseCase:
                     up_slots = await self._uow.timetable_slots.list_by_upload_id(up.id)
                     slots.extend(up_slots)
 
-
-
         if term is None:
             return 0
 
@@ -107,9 +105,7 @@ class GetCalendarEventsUseCase:
     async def execute(
         self, faculty_id: UUID, start_utc: datetime, end_utc: datetime
     ) -> list[Event]:
-        return await self._uow.events.list_by_faculty_and_range(
-            faculty_id, start_utc, end_utc
-        )
+        return await self._uow.events.list_by_faculty_and_range(faculty_id, start_utc, end_utc)
 
 
 class CheckClashesUseCase:
@@ -125,9 +121,7 @@ class CheckClashesUseCase:
     ) -> list[dict[str, str]]:
         clashes: list[dict[str, str]] = []
         for aid in attendee_ids:
-            events = await self._uow.events.list_by_faculty_and_range(
-                aid, start_utc, end_utc
-            )
+            events = await self._uow.events.list_by_faculty_and_range(aid, start_utc, end_utc)
             profile = await self._uow.faculty_profiles.get_by_id(aid)
             faculty_name = profile.full_name if profile else ""
             for ev in events:
@@ -306,9 +300,7 @@ class FindFreeSlotsUseCase:
                 aid, query_start_utc, query_end_utc
             )
             for ev in events:
-                busy_intervals.append(
-                    BusyInterval(start_utc=ev.start_utc, end_utc=ev.end_utc)
-                )
+                busy_intervals.append(BusyInterval(start_utc=ev.start_utc, end_utc=ev.end_utc))
 
         finder = FreeSlotFinder(
             work_start_time=work_start_time,
@@ -337,9 +329,7 @@ class GenerateIcsFeedUseCase:
         start_utc = now - timedelta(days=30)
         end_utc = now + timedelta(days=90)
 
-        events = await self._uow.events.list_by_faculty_and_range(
-            profile.id, start_utc, end_utc
-        )
+        events = await self._uow.events.list_by_faculty_and_range(profile.id, start_utc, end_utc)
         ics_bytes = generate_vcalendar_ics(
             events=events,
             calendar_name=f"{profile.full_name}'s Schedule",

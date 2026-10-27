@@ -169,7 +169,6 @@ async def create_calendar_event(
         if principal.role == Role.FACULTY and (profile is None or attendee_ids != [profile.id]):
             raise ForbiddenError("Faculty can only create personal calendar events")
 
-
         use_case = CreateEventUseCase(uow, clock)
         try:
             event = await use_case.execute(
@@ -243,7 +242,6 @@ async def cancel_calendar_event(
         event = await uow.events.get_by_id(event_id)
         if event is None:
             raise NotFoundError(f"Event with id '{event_id}' was not found")
-
 
         if principal.role == Role.FACULTY:
             profile = await uow.faculty_profiles.get_by_user_id(principal.user_id)

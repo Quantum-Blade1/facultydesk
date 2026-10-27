@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "10",
+  "current_stage": "11",
   "stages": [
     {
       "id": "01",
@@ -272,12 +272,30 @@
     {
       "id": "10",
       "file": "10-hardening.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T19:50:00+05:30",
+      "finished_at": "2026-10-28T01:51:00+05:30",
+      "commit": "pending",
+      "tasks": [
+        "Security audits: uv pip-audit (Python) and pnpm audit (Frontend) - zero known vulnerabilities",
+        "Hardened perimeter: Content-Security-Policy, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, and Permissions-Policy in Caddyfile and Next.js",
+        "UploadGuard: Byte-level magic header MIME sniffing, decompression bomb defense (<= 25M pixels), PDF page limits (<= 30 pages), and 15 MB size limits",
+        "Automated backup & restore drill: BackupService with pg_dump streaming to MinIO 'backups' bucket, 14-day cutoff pruning, and verified psql restore",
+        "Celery worker resilience: soft/hard time limits (300s/360s), prefetch multiplier 1, nightly Celery Beat backup schedule (02:00 UTC), and X-Request-ID propagation via Celery signals",
+        "Reliability & metrics API: GET /api/admin/metrics (status breakdown, queue depth, p50/p95/p99 dispatch latencies, dead-letters) and POST /api/admin/notifications/{id}/retry",
+        "Performance verification: benchmark_stage_10.py on 120 faculty, 5000 tasks, 2-term workload with EXPLAIN ANALYZE (calendar p95 = 0.60ms < 150ms, notification batch claim = 0.0012s < 60s)",
+        "OWASP ASVS Level 1 review table in docs/DECISIONS.md"
+      ],
+      "evidence": [
+        "make lint typecheck test -> ruff passed (0 errors), frontend eslint passed (0 errors), mypy --strict passed (121 files, 0 errors), tsc --noEmit passed (0 errors), pytest passed (83/83 passed in 18.79s)",
+        "pip-audit and pnpm audit -> 0 vulnerabilities found",
+        "make backup -> facultydesk_backup_20261027_200533.sql.gz (584,706 bytes) created and stored in MinIO bucket 'backups'",
+        "make restore -> Backup restored into PostgreSQL successfully (returncode=0)",
+        "python3 scripts/benchmark_stage_10.py -> 120 faculty, 5000 tasks, 2 terms seeded; 1-week calendar query p95=0.60ms (< 150ms); 1000 due notification claim=0.0012s (< 60s)",
+        "GET /api/admin/metrics -> HTTP 200 with notification status counts, celery queue depth, lateness percentiles, dead-letters",
+        "POST /api/admin/notifications/{id}/retry -> HTTP 200, successfully reset FAILED notification to PENDING and fire_at_utc=now",
+        "docs/diagrams/stage_10_decisions.png rendered via @mermaid-js/mermaid-cli"
+      ]
     },
     {
       "id": "11",

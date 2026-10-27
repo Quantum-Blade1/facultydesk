@@ -54,4 +54,3 @@ class RateLimitExceededError(FacultyDeskError):
         details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__("RATE_LIMIT_EXCEEDED", message, details)
-

@@ -159,9 +159,7 @@ class TimetableUpload:
     status: TimetableUploadStatus = TimetableUploadStatus.UPLOADED
     parse_report: dict[str, Any] = field(default_factory=dict)
     failure_reason: str | None = None
-    uploaded_at_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    uploaded_at_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def start_parsing(self) -> None:
         if self.status != TimetableUploadStatus.UPLOADED:
@@ -202,7 +200,6 @@ class TimetableUpload:
         self.failure_reason = reason
 
 
-
 @dataclass
 class TimetableSlot:
     id: UUID = field(default_factory=uuid4)
@@ -234,12 +231,8 @@ class Event:
     id: UUID = field(default_factory=uuid4)
     kind: EventKind = EventKind.CLASS
     title: str = ""
-    start_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
-    end_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    start_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
+    end_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
     location: str = ""
     source: EventSource = EventSource.MANUAL
     source_id: UUID | None = None
@@ -379,9 +372,7 @@ class ScheduledNotification:
     target_kind: str = "EVENT"
     user_id: UUID = field(default_factory=uuid4)
     channel: NotificationChannel = NotificationChannel.EMAIL
-    fire_at_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    fire_at_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
     idempotency_key: str = ""
     attempts: int = 0
     max_attempts: int = 5
@@ -455,9 +446,7 @@ class Task:
     id: UUID = field(default_factory=uuid4)
     title: str = ""
     description: str = ""
-    deadline_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    deadline_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
     importance: int = 3
     category: TaskCategory = TaskCategory.ACADEMIC_DOCUMENTATION
     status: TaskStatus = TaskStatus.TODO
@@ -465,9 +454,7 @@ class Task:
     assigner_id: UUID = field(default_factory=uuid4)
     parent_assignment_id: UUID | None = None
     recurrence: TaskRecurrence | None = None
-    created_at_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    created_at_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
     domain_events: list[DomainEvent] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -528,9 +515,7 @@ class AuditLog:
     resource_type: str = ""
     resource_id: str = ""
     payload: dict[str, Any] = field(default_factory=dict)
-    timestamp_utc: datetime = field(
-        default_factory=lambda: datetime.now(UTC)
-    )
+    timestamp_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __post_init__(self) -> None:
         if not self.action.strip():

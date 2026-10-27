@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from uuid import UUID
 
 import jwt
+import redis.asyncio as aioredis
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -8,7 +11,7 @@ from app.application.security.policy import Principal
 from app.core.clock import Clock, SystemClock
 from app.core.db import async_session_factory
 from app.core.errors import ForbiddenError, UnauthorizedError
-from app.core.redis import get_redis_client
+from app.core.redis import RedisClient, get_redis_client
 from app.core.security import decode_token
 from app.domain import Role, UnitOfWork
 from app.infrastructure.db.repositories import SqlAlchemyUnitOfWork
@@ -27,6 +30,10 @@ def get_uow() -> UnitOfWork:
 
 def get_clock() -> Clock:
     return SystemClock()
+
+
+def get_redis() -> RedisClient:
+    return get_redis_client()
 
 
 def get_rate_limiter() -> RedisSlidingWindowRateLimiter:

@@ -106,10 +106,7 @@ class OcrEngine:
         res_psm6 = self._execute_psm(image, psm=6)
         res_psm4 = self._execute_psm(image, psm=4)
 
-        if (
-            len(res_psm4.word_boxes) > len(res_psm6.word_boxes) + 5
-            and res_psm4.confidence >= 70.0
-        ):
+        if len(res_psm4.word_boxes) > len(res_psm6.word_boxes) + 5 and res_psm4.confidence >= 70.0:
             return res_psm4
 
         if (

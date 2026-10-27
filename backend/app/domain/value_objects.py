@@ -135,4 +135,3 @@ class TimetableUploadStatus(StrEnum):
     PREVIEW_READY = "PREVIEW_READY"
     CONFIRMED = "CONFIRMED"
     FAILED = "FAILED"
-

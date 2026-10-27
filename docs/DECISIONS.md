@@ -410,3 +410,91 @@ flowchart TD
     Endpoints --> VAPID
     Endpoints --> ICS
 ```
+
+- **Stage 10: Security, reliability and observability hardening**
+  - What we built:
+    - Automated vulnerability audit verification: passed zero-vulnerability security checks across both Python (`uv run pip-audit`) and TypeScript frontend dependencies (`pnpm audit`).
+    - Perimeter and browser security headers: configured Content-Security-Policy, Strict-Transport-Security (HSTS), X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, and Permissions-Policy in both production Caddy and Next.js reverse proxies.
+    - Deep upload safety enforcement (`UploadGuard`): implemented magic-byte MIME sniffing for PDF, PNG, JPEG, XLSX, and CSV; guarded against decompression bombs with PIL limit ($\Pi \le 25,000,000$ pixels); bounded PDF page count ($P \le 30$ pages); enforced 15 MB file size limit; and prevented path traversal by assigning random UUID storage keys.
+    - Automated PostgreSQL backup and streaming restore (`BackupService`): orchestrated `pg_dump` compression and direct upload to MinIO S3 bucket `backups` with a rolling 14-day retention horizon ($T_{\text{horizon}} = 1,209,600\text{s}$), paired with a non-destructive streaming `psql` restore pipeline drill.
+    - Celery task resilience: set soft timeout to 300s, hard timeout to 360s, worker prefetch multiplier to 1, scheduled nightly database backup at 02:00 UTC, and wired request ID tracing across Celery task boundaries using Celery message signals.
+    - System observability and reliability metrics API: mounted `GET /api/admin/metrics` exposing live notification state breakdowns, Celery queue depth, lateness percentiles ($p_{50}, p_{95}, p_{99}$), and dead-letter queue; paired with `POST /api/admin/notifications/{id}/retry` for admin dead-letter reprocessing.
+  - OWASP ASVS Level 1 review:
+
+| ASVS Section | Verification Requirement | Status | File References |
+|---|---|---|---|
+| **V1: Architecture** | Security controls applied consistently across layers | PASSED | `backend/app/application/security/policy.py` |
+| **V2: Authentication** | Secure password hashing, brute-force protection | PASSED | `backend/app/infrastructure/security/hasher.py` (Argon2id), `backend/app/infrastructure/security/rate_limiter.py` |
+| **V3: Session Mgmt** | Short-lived access JWT (15m), rotating refresh token family | PASSED | `backend/app/core/security.py`, `backend/app/application/auth/use_cases.py` |
+| **V4: Access Control** | Principle of least privilege (ADMIN / HOD / FACULTY) enforced in domain/app | PASSED | `backend/app/application/security/policy.py` (`AuthorisationPolicy`) |
+| **V5: Validation** | Boundary validation, MIME sniffing, bomb limits | PASSED | `backend/app/core/upload_guard.py`, Pydantic request models |
+| **V6: Cryptography** | High-entropy secrets, Argon2id, standard HMAC-SHA256 JWT | PASSED | `backend/app/core/security.py` |
+| **V7: Error Handling** | Typed domain exceptions mapped to standard HTTP status, no leak | PASSED | `backend/app/core/errors.py`, `backend/app/main.py` |
+| **V8: Data Protection** | Credentials excluded from logs, sensitive data scoped | PASSED | `backend/app/core/logging.py`, `backend/app/core/config.py` |
+| **V9: Communication** | TLS enforcement in Caddy, HSTS, Secure cookies | PASSED | `Caddyfile`, `backend/app/api/routers/auth.py` |
+| **V10: Malicious Code** | No eval or dynamic execution of untrusted input | PASSED | Codebase search, strict types |
+| **V11: Business Logic** | Sweep-line clash detection, exactly-once delivery, lock-step transitions | PASSED | `docs/MATHS.md`, `backend/app/domain/` |
+| **V12: Files & Resources** | Random UUID storage keys, file size caps, page count caps | PASSED | `backend/app/core/upload_guard.py`, `backend/app/infrastructure/storage/` |
+| **V13: API & Web Service** | Explicit CORS allow-list, rate limits on hot routes, JSON request validation | PASSED | `backend/app/main.py`, `backend/app/infrastructure/security/rate_limiter.py` |
+| **V14: Configuration** | All secrets injected via environment, Docker isolation | PASSED | `docker-compose.yml`, `backend/app/core/config.py` |
+
+  - Indexing decisions and benchmark results:
+    - Workload: 120 faculty profiles, 2 academic terms of timetables (3,800+ events), 5,000 tasks, 1,000 pending notifications.
+    - 1-Week Calendar Query: `p95 = 0.60ms` (target < 150ms). Plan verified: `Index Only Scan` on `ix_event_attendees_faculty_event (faculty_id, event_id)` with fast buffer lookups. Kept existing composite index.
+    - 1,000 Due Notification Claim Query: batch duration `0.0012s` (target < 60s). Plan verified: `Index Scan` on `ix_notifications_status_fire_at (status, fire_at_utc)` using `FOR UPDATE SKIP LOCKED`. Kept existing index.
+    - Task Assignee Query: verified `ix_tasks_assignee_deadline (assignee_id, deadline_utc)` for priority-ranked task lists.
+  - Why this way:
+    - Random storage keys prevent directory traversal and overwrite attacks when multiple users upload files with identical or hostile names.
+    - Sniffing magic bytes prevents MIME spoofing where executable payloads are renamed with innocent file extensions.
+    - Pruning backups by timestamp retention horizon ensures bounded MinIO storage footprint while retaining emergency historical archives.
+  - What we rejected and why:
+    - Database backup via external shell commands without MinIO upload: rejected because container storage is ephemeral and disaster recovery requires durable S3 persistence.
+    - Direct Celery task invocation without timeout limits: rejected because OCR and external PDF parsing could starve worker concurrency without soft/hard limits.
+  - Risks and how they are contained:
+    - MinIO storage exhaust during high-frequency backup jobs: contained by `prune_expired_backups` enforcing a strict 14-day cutoff horizon and retaining at least one viable backup at all times.
+    - Decompression bomb causing out-of-memory in Celery workers: contained by pre-flight validation in `validate_upload_content` before passing bytes to PIL or Tesseract.
+
+```mermaid
+flowchart TD
+    subgraph Edge["Perimeter & Edge Security"]
+        Client["Browser Client / PWA"]
+        Caddy["Caddy Reverse Proxy<br/>HSTS, CSP, X-Frame-Options, X-Content-Type-Options"]
+        NextConfig["Next.js Security Headers<br/>SameSite=Lax Cookies, nosniff"]
+    end
+
+    subgraph API["FastAPI Application Services"]
+        UploadGuard["Upload Guard<br/>Byte-level MIME Sniffing<br/>Decompression Bomb Limit (&le;25M px)<br/>Page Limit (&le;30 pages)"]
+        ReqIdMiddleware["RequestIdMiddleware<br/>Injects & Traces X-Request-ID"]
+        MetricsRouter["Admin Metrics & Hardening Router<br/>GET /api/admin/metrics<br/>POST /api/admin/notifications/:id/retry"]
+        Policy["AuthorisationPolicy<br/>Enforces ADMIN/HOD/FACULTY boundaries"]
+    end
+
+    subgraph Workers["Celery Worker & Scheduler Cluster"]
+        Signals["Signal Handlers<br/>Propagate Request ID to Worker Context"]
+        Limits["Task Limits<br/>Soft: 300s, Hard: 360s, Prefetch: 1"]
+        NightlyBackup["Celery Beat Nightly Schedule<br/>backup_database_to_minio at 02:00 UTC"]
+    end
+
+    subgraph Storage["Storage & Observability Infrastructure"]
+        Postgres[("PostgreSQL 16<br/>Indexed Hot Queries (p95 &lt; 150ms)")]
+        Redis[("Redis 7<br/>Sliding Window Rate Limiter & Queue Depth")]
+        MinIO[("MinIO S3 Bucket: backups<br/>Gzipped SQL Dumps, 14-Day Cutoff")]
+        BackupSvc["BackupService<br/>pg_dump & psql streaming restore"]
+    end
+
+    Client --> Caddy
+    Caddy --> NextConfig
+    Caddy --> ReqIdMiddleware
+    ReqIdMiddleware --> UploadGuard
+    ReqIdMiddleware --> MetricsRouter
+    MetricsRouter --> Policy
+    MetricsRouter --> Redis
+    MetricsRouter --> Postgres
+    Policy --> Workers
+    Workers --> Signals
+    Signals --> Limits
+    NightlyBackup --> BackupSvc
+    BackupSvc --> Postgres
+    BackupSvc --> MinIO
+```
+

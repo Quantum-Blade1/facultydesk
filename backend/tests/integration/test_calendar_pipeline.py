@@ -136,19 +136,15 @@ async def test_calendar_full_pipeline() -> None:
                 ],
                 "unresolved_tokens": [],
             },
-
         )
         await uow.timetable_uploads.save(upload)
         await uow.commit()
 
     admin_principal = Principal(user_id=admin_user_id, role=Role.ADMIN)
 
-    confirm_uc = ConfirmTimetableUseCase(
-        SqlAlchemyUnitOfWork(async_session_factory), clock
-    )
+    confirm_uc = ConfirmTimetableUseCase(SqlAlchemyUnitOfWork(async_session_factory), clock)
     slots_created, _event = await confirm_uc.execute(admin_principal, upload_id)
     assert slots_created == 1
-
 
     async with SqlAlchemyUnitOfWork(async_session_factory) as uow:
         calendar_uc = GetCalendarEventsUseCase(uow)
