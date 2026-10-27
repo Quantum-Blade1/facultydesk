@@ -7,7 +7,6 @@ test.describe("Journey 3: Meeting Reminder Exactly-Once Delivery", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    // 1. Log in via API to obtain faculty and admin tokens
     const facLoginRes = await request.post("/api/auth/login", {
       data: { email: "kks@facultydesk.local", password: "Faculty123!" },
     });
@@ -16,7 +15,6 @@ test.describe("Journey 3: Meeting Reminder Exactly-Once Delivery", () => {
     const facToken = facAuth.access_token;
     const facProfileId = facAuth.profile.id;
 
-    // 2. Schedule meeting 2 minutes ahead with 1-min reminder
     const now = new Date();
     const start = new Date(now.getTime() + 2 * 60 * 1000);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -37,12 +35,10 @@ test.describe("Journey 3: Meeting Reminder Exactly-Once Delivery", () => {
     const event = await eventRes.json();
     expect(event.id).toBeDefined();
 
-    // 3. Log in as Admin in UI to verify system metrics and notification health
     await loginAs(page, "admin@facultydesk.local", "Admin123!");
     await page.goto("/today");
     await expect(page.locator("h1")).toBeVisible();
 
-    // 4. Poll admin metrics API to verify notifications delivered / active
     const adminLogin = await request.post("/api/auth/login", {
       data: { email: "admin@facultydesk.local", password: "Admin123!" },
     });

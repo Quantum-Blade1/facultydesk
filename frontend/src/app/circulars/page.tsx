@@ -201,6 +201,7 @@ export default function CircularsPage() {
               <Upload className="w-4 h-4 mr-1.5" />
               <span>{uploading ? "Uploading..." : "Upload Circular"}</span>
               <input
+                data-testid="circular-upload-input"
                 type="file"
                 accept="application/pdf,image/png,image/jpeg"
                 onChange={handleFileUpload}

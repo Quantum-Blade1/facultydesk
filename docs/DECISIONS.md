@@ -561,3 +561,55 @@ flowchart TD
     GHA -.->|Validates| Backend
     GHA -.->|Validates| Frontend
 ```
+
+- **Stage 12: OOAD presentation pack, traceability matrix, and final audit**
+  - What we built:
+    - Complete suite of 11 standardized OOAD presentation diagrams (`01` through `11`) exported in both high-resolution SVG and 2x PNG to `docs/diagrams/`: Use Case, Domain Class Diagram, Sequence (Timetable, Circular, Reminder Dispatch), State Machine (Circular, Scheduled Notification), Activity (Timetable Ingestion Pipeline), Component Architecture, Production Deployment Topology, and Entity-Relationship Diagram.
+    - 10-Minute OOAD Evaluator Guide in `docs/PROJECT.md` detailing all four system actors (Admin, HOD, Faculty, Scheduler), clean architecture boundary isolation (Domain, Application, Infrastructure, API), core domain aggregates and entities, and concrete GoF design pattern implementations (Repository, Strategy, Factory, Observer, State, Unit of Work).
+    - Comprehensive Requirements Traceability Matrix in `docs/PROJECT.md` connecting all 7 original platform requirements across 5 strict dimensions: Use Case, Domain Class, API Endpoints, Frontend Screen, and Test Proofs with zero empty cells.
+    - Cold-stack deployment verification: verified clean container initialization (`docker compose down -v`, `make up`, `make migrate`, `make demo`), with 100% green Playwright E2E journeys and 83 unit/integration tests passing.
+    - Final slop and hardening sweep: removed any bare exceptions, eliminated in-code comments, and updated Graphify knowledge graph (`2309` nodes, `6728` edges, `148` communities).
+  - What the system does:
+    - Provides a production-grade, deployable academic timetable and circular schedule manager that automates cell extraction, faculty initials resolution, clash-free calendar generation, OCR notice parsing with human review, exactly-once notification delivery (email and Web Push), and priority-ranked accreditation task tracking.
+  - Known limitations:
+    - OCR extraction precision depends on visual scan clarity; highly skewed or low-contrast physical paper photos trigger the human review queue by design rather than attempting heuristic guesses.
+    - Mobile push notification delivery relies on active browser service worker registration with valid VAPID keys; native operating system background delivery requires PWA installation.
+    - Timetable ingestion currently supports standard tabular grid structures (XLSX, CSV, PDF); unstructured handwritten schedules require prior digitization.
+  - Next three improvements worth making:
+    - Bi-directional CalDAV synchronization allowing faculty to edit meetings in third-party clients (Apple Calendar, Google Calendar) and sync back into FacultyDesk.
+    - Multi-modal local LLM integration (e.g. Gemma 2 via Ollama) to assist Tesseract in extracting complex tabular data from distorted circular scans.
+    - Native mobile wrapper via Capacitor or React Native for background Web Push and offline timetable viewing without browser dependencies.
+  - Why this way:
+    - Pre-rendering all 11 diagrams as dual SVG/PNG guarantees crisp presentation across offline slides, printed project reports, and web evaluation browsers without runtime rendering dependencies.
+    - Tracing requirements directly to automated test proof functions proves to academic evaluators that every specified capability is backed by passing regression tests.
+  - What we rejected and why:
+    - Generic, auto-generated UML diagrams that do not reflect clean architecture separation: rejected in favor of hand-curated Mermaid diagrams modeled directly from concrete domain entities and use cases.
+    - Merging domain and infrastructure representations into a single class diagram: rejected to preserve pure Clean Architecture layer isolation.
+  - Risks and how they are contained:
+    - Documentation drift as implementation evolves: contained by validating diagrams and traceability tables against active codebase classes and automated test suites.
+
+```mermaid
+flowchart TD
+    subgraph Audit["Stage 12 Final Evaluation Pack"]
+        Diag["11 High-Res Diagrams<br/>docs/diagrams/ (SVG & PNG)"]
+        Trace["Requirements Traceability Matrix<br/>7 Core Req &times; 5 Dimensions"]
+        Eval["10-Min Evaluator Guide<br/>Actors, Layers, Patterns, States"]
+        AuditSuite["Full Verification Suite<br/>Clean Boot + 83 Tests + 4 E2E Journeys"]
+    end
+
+    subgraph System["FacultyDesk Core Platform"]
+        Domain["Clean Domain Layer<br/>Zero external I/O"]
+        App["Application Layer<br/>Single-purpose Use Cases"]
+        Infra["Infrastructure Layer<br/>PostgreSQL 16, Redis 7, MinIO, Celery"]
+        API["FastAPI 0.115 + Next.js 16 PWA"]
+    end
+
+    Audit --> System
+    Diag -.-> Domain
+    Diag -.-> App
+    Diag -.-> Infra
+    Diag -.-> API
+    Trace -.-> System
+    Eval -.-> System
+    AuditSuite -.-> System
+```

@@ -2,6 +2,7 @@ from functools import lru_cache
 from io import BytesIO
 
 from minio import Minio
+from minio.error import S3Error
 
 from app.core.config import get_settings
 
@@ -28,7 +29,7 @@ class MinioStorageService:
         try:
             if not self._client.bucket_exists(self._bucket_name):
                 self._client.make_bucket(self._bucket_name)
-        except Exception:
+        except S3Error:
             pass
 
     def upload_file(
