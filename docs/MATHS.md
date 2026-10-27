@@ -787,9 +787,296 @@ $$t_{\text{start}} < t_{\text{end}}$$
 6. **Proof Plan**:
 - `test_header_normalization`: Unit test asserting parsing across varied day and time string formats.
 
-## 6. OCR Confidence
+## 6. OCR Confidence, Preprocessing, and Review Gate
+
+### 6.1 Document Confidence: Length-Weighted Mean
+
+1. **Idea**:
+Simple arithmetic means of OCR confidence scores over-represent short, uninformative word tokens (such as single punctuation marks or misread 1-character artifacts) at the expense of substantive semantic words. We compute the document confidence score $C \in [0, 100]$ as a **length-weighted mean** across all recognized tokens with valid confidence ($c_i \ge 0$). Longer words carry proportionally greater weight in assessing overall OCR legibility.
+
+2. **Formula and Invariants**:
+Let $W = \{(w_1, c_1), (w_2, c_2), \dots, (w_M, c_M)\}$ be the sequence of word tokens produced by Tesseract, where $w_i \in \Sigma^+$ is the recognized string and $c_i \in [0, 100]$ is the token confidence.
+Define the valid token subset:
+$$W^+ = \{(w_i, c_i) \in W \mid c_i \ge 0 \land \operatorname{len}(w_i) > 0\}$$
+
+The document confidence score $C$ is:
+$$C = \begin{cases}
+0.0 & \text{if } W^+ = \emptyset \\
+\displaystyle \frac{\sum_{(w_i, c_i) \in W^+} \operatorname{len}(w_i) \cdot c_i}{\sum_{(w_i, c_i) \in W^+} \operatorname{len}(w_i)} & \text{otherwise}
+\end{cases}$$
+
+Invariants:
+$$0.0 \le C \le 100.0$$
+$$\forall (w_i, c_i) \in W^+, \quad c_i = K \implies C = K$$
+
+**Dual-PSM Heuristic Rule**:
+Tesseract is first invoked in Page Segmentation Mode 6 (`--oem 1 --psm 6`, uniform text block).
+Let $C_6$ be the resulting document confidence.
+If $C_6 < \theta_{\text{doc}} = 70.0$, the engine retries with Page Segmentation Mode 4 (`--oem 1 --psm 4`, variable column sizes / table layout), yielding $(W_4, C_4)$.
+The engine selects the superior segmentation:
+$$(W^*, C^*) = \begin{cases}
+(W_4, C_4) & \text{if } C_4 > C_6 \\
+(W_6, C_6) & \text{otherwise}
+\end{cases}$$
+
+3. **Worked Example**:
+Recognized tokens:
+- $w_1 = \text{"Meeting"}$ ($\operatorname{len}=7, c_1=90$)
+- $w_2 = \text{"at"}$ ($\operatorname{len}=2, c_2=80$)
+- $w_3 = \text{"10:30"}$ ($\operatorname{len}=5, c_3=95$)
+- $w_4 = \text{"AM"}$ ($\operatorname{len}=2, c_4=85$)
+- $w_5 = \text{"."}$ (artifact $\operatorname{len}=1, c_5=20$)
+
+Numerator:
+$$\sum \operatorname{len}(w_i) \cdot c_i = (7 \cdot 90) + (2 \cdot 80) + (5 \cdot 95) + (2 \cdot 85) + (1 \cdot 20) = 630 + 160 + 475 + 170 + 20 = 1455$$
+Denominator:
+$$\sum \operatorname{len}(w_i) = 7 + 2 + 5 + 2 + 1 = 17$$
+Document Confidence:
+$$C = \frac{1455}{17} \approx 85.59\%$$
+Notice that unweighted arithmetic mean would be $\frac{90+80+95+85+20}{5} = \frac{370}{5} = 74.00\%$, heavily penalized by the single-character artifact. Length-weighting correctly reflects that $16$ of $17$ characters were recognized with high confidence ($>80\%$).
+
+4. **Edge Cases**:
+- Empty image / zero words extracted: $W^+ = \emptyset \implies C = 0.0$.
+- Tesseract returns negative confidences for whitespace or non-text blocks ($c_i = -1$): Filtered out prior to summation.
+
+5. **Complexity**:
+- Time complexity: $O(M)$ over $M$ word boxes ($M \le 2000 \implies < 1\text{ ms}$).
+- Space complexity: $O(M)$ for token list.
+
+6. **Proof Plan**:
+- `test_length_weighted_document_confidence`: Unit test comparing hand-calculated length-weighted vs simple arithmetic mean.
+- `test_confidence_bounds_property`: Hypothesis test proving $C \in [0.0, 100.0]$ for arbitrary non-negative token lists.
+
+### 6.2 Image Deskewing via Minimum-Area Bounding Rectangle
+
+1. **Idea**:
+Photographs or scans of paper circulars frequently exhibit rotational skew from hand capture or feeder alignment. Rotational skew severely degrades Tesseract's line-finding and character recognition accuracy. We compute the dominant orientation angle of foreground text pixels using OpenCV's `minAreaRect` on the binarized text mask and rotate the image to horizontal if $|\theta| \ge 0.5^\circ$. Small angles ($< 0.5^\circ$) are left unrotated to avoid bicubic interpolation blur.
+
+2. **Algorithm and Formula**:
+Let $I \in \mathbb{R}^{H \times W}$ be the input RGB image.
+- Step 1: Convert to grayscale: $I_{\text{gray}} = 0.299R + 0.587G + 0.114B$.
+- Step 2: Denoise via Non-Local Means: $I_{\text{denoised}} = \operatorname{fastNlMeansDenoising}(I_{\text{gray}})$.
+- Step 3: Adaptive Gaussian Thresholding:
+  $$I_{\text{bin}}(x, y) = \begin{cases}
+  0 & \text{if } I_{\text{denoised}}(x, y) > T(x, y) - C \\
+  255 & \text{otherwise (foreground text pixels)}
+  \end{cases}$$
+  where $T(x, y)$ is the local Gaussian-weighted mean in a $21 \times 21$ neighborhood.
+- Step 4: Extract foreground pixel coordinates $P = \{(x, y) \mid I_{\text{bin}}(x, y) = 255\}$.
+- Step 5: Compute minimum-area rotated rectangle:
+  $$(\text{center}, (\text{width}, \text{height}), \phi) = \operatorname{minAreaRect}(P)$$
+  Normalize angle $\theta \in [-45^\circ, 45^\circ]$:
+  $$\theta = \begin{cases}
+  \phi + 90^\circ & \text{if } \phi < -45^\circ \\
+  \phi - 90^\circ & \text{if } \phi > 45^\circ \\
+  \phi & \text{otherwise}
+  \end{cases}$$
+- Step 6: Deskew decision:
+  $$\operatorname{Deskew}(I) = \begin{cases}
+  I & \text{if } |\theta| < 0.5^\circ \\
+  \operatorname{warpAffine}\left(I, \operatorname{getRotationMatrix2D}(\text{center}, \theta, 1.0)\right) & \text{if } |\theta| \ge 0.5^\circ
+  \end{cases}$$
+
+3. **Worked Example**:
+A circular photograph is rotated clockwise by $3.2^\circ$.
+`minAreaRect` detects bounding box with angle $\phi = -3.2^\circ$.
+$|\theta| = 3.2^\circ \ge 0.5^\circ \implies$ Rotate counter-clockwise by $3.2^\circ$ around center $(W/2, H/2)$.
+Resulting text lines are aligned with horizontal raster axes, restoring OCR line detection.
+
+4. **Edge Cases**:
+- Low contrast or blank image ($|P| < 100$): Skip rotation to prevent erratic angle calculations on noise.
+- 90-degree sideways orientation: Handled by aspect ratio heuristic ($\text{width} > \text{height}$ for portrait circulars).
+
+5. **Complexity**:
+- Time complexity: $O(H \cdot W)$ for binarization, $O(|P| \log |P|)$ for convex hull and rotating calipers in `minAreaRect` ($< 80\text{ ms}$ on 300 DPI A4 page).
+- Space complexity: $O(H \cdot W)$ for binary buffer.
+
+6. **Proof Plan**:
+- `test_deskew_angle_recovery`: Rotates synthetic text image by $\pm 5^\circ$ and asserts recovered deskew angle within $\pm 0.3^\circ$.
+- `test_deskew_skip_sub_threshold`: Verifies images with angle $0.2^\circ$ are returned unrotated.
+
+### 6.3 Field Confidence Rules and Review Queue Gate Predicate
+
+1. **Idea**:
+To protect faculty calendars from erroneous or phantom meetings, an uploaded circular must undergo strict automated validation. If every required field is present with high confidence, and the department has configured `auto_confirm_circulars = True`, the system automatically schedules the meeting. In all other cases (low confidence, ambiguous initials, missing start time/date, or default department review setting), the circular transitions to `NEEDS_REVIEW` with structured human-readable reasons.
+
+2. **Field Confidence Definitions**:
+- **Date Confidence** $C_{\text{date}} \in [0.0, 1.0]$:
+  $$C_{\text{date}} = \begin{cases}
+  1.0 & \text{if extracted date appears immediately after cue words (\text{"meeting on"}, \text{"dated"})} \\
+  0.85 & \text{if extracted date parsed unambiguously from header or body} \\
+  0.0 & \text{if no valid calendar date extracted}
+  \end{cases}$$
+- **Time Confidence** $C_{\text{time}} \in [0.0, 1.0]$:
+  $$C_{\text{time}} = \begin{cases}
+  1.0 & \text{if explicit start and end times matched formal grammar} \\
+  0.85 & \text{if start time matched formal grammar and 60m duration was assumed} \\
+  0.0 & \text{if no start time matched formal grammar}
+  \end{cases}$$
+- **Venue Confidence** $C_{\text{venue}} \in [0.0, 1.0]$:
+  $$C_{\text{venue}} = \begin{cases}
+  0.95 & \text{if text follows venue cue keywords on the same line} \\
+  0.50 & \text{if venue is blank or inferred from generic text}
+  \end{cases}$$
+- **Attendee Confidence** $C_{\text{att}}(a) \in [0.0, 1.0]$:
+  For each attendee token $a$:
+  $$C_{\text{att}}(a) = \begin{cases}
+  1.0 & \text{if token matches exact initials or exact alias of a department faculty} \\
+  \operatorname{token\_set\_ratio}(\text{token}, \text{faculty.full\_name}) / 100.0 & \text{if full name match} \\
+  1.0 & \text{if token is keyword \text{"all faculty"} or \text{"all staff"}}
+  \end{cases}$$
+
+**Review Gate Decision Function**:
+$$\begin{aligned}
+\operatorname{PassesGate}(\text{circular}) \iff &(C_{\text{doc}} \ge 70.0) \\
+&\land (C_{\text{date}} \ge 0.85) \\
+&\land (C_{\text{time}} \ge 0.85) \\
+&\land (|Attendees| \ge 1) \\
+&\land \forall a \in Attendees, \; C_{\text{att}}(a) \ge 0.85 \\
+&\land \neg \operatorname{is\_duplicate}(\text{circular})
+\end{aligned}$$
+
+Final Transition:
+$$\operatorname{TargetStatus} = \begin{cases}
+\text{CONFIRMED} & \text{if } \operatorname{PassesGate}(\text{circular}) \land \text{dept.auto\_confirm\_circulars} \\
+\text{NEEDS\_REVIEW} & \text{otherwise}
+\end{cases}$$
+
+3. **Worked Example**:
+- Circular OCR Document Confidence: $84.2 \ge 70.0$.
+- Date: `2026-11-05`, cue word `"held on"` $\implies C_{\text{date}} = 1.0 \ge 0.85$.
+- Time: `10:30 AM` (no end time $\implies$ assumed 60m) $\implies C_{\text{time}} = 0.85 \ge 0.85$.
+- Attendees: `["KKS", "Dr. Rajesh Sharma"]` $\implies C_{\text{att}}(\text{KKS}) = 1.0$, $C_{\text{att}}(\text{Rajesh}) = 0.95 \ge 0.85$.
+- Department setting: `auto_confirm_circulars = False` (default).
+Outcome: Passes gate checks, but department policy requires review $\implies$ Transitions to `NEEDS_REVIEW`.
+Reasons list: `["DEPARTMENT_REVIEW_REQUIRED"]`.
+HOD one-click confirmation creates the Event and triggers stage 06 reminders.
+
+4. **Edge Cases**:
+- Circular says "all faculty": Resolves to all active faculty in department with $C=1.0$.
+- Low document confidence ($C_{\text{doc}} = 55.4 < 70.0$): Marked `NEEDS_REVIEW` with reason `LOW_DOCUMENT_CONFIDENCE`.
+- Ambiguous initials (`KS` when both `K. Sharma` and `K. Sen` exist): Flagged in `NEEDS_REVIEW` with reason `AMBIGUOUS_ATTENDEE`.
+
+5. **Complexity**:
+- Time complexity: $O(A \cdot N)$ where $A$ is attendees and $N$ is department size ($< 10\text{ ms}$).
+- Space complexity: $O(A)$.
+
+6. **Proof Plan**:
+- `test_review_gate_decision_matrix`: Table-driven test testing auto-confirm vs review for all combinations of threshold failures.
+
+### 6.4 Circular Duplicate Detection Predicate
+
+1. **Idea**:
+If an administrative assistant uploads a circular that was already uploaded earlier or was manually created on the calendar, the system must not create a duplicate event or send double notifications. We evaluate a normalized duplicate predicate against existing events on the same calendar day.
+
+2. **Formula and Invariants**:
+Let $C$ be the candidate circular extraction: date $D$, start time $T_{\text{start}}$, and raw title $S$.
+Let $E$ be an existing calendar event on date $D$.
+Define title normalization:
+$$\operatorname{norm\_title}(x) = \operatorname{lowercase}(\operatorname{strip\_punctuation}(\operatorname{strip\_academic\_titles}(x)))$$
+
+The duplicate predicate is:
+$$\operatorname{is\_duplicate}(C, E) \iff (C.D == E.D) \land (|C.T_{\text{start}} - E.T_{\text{start}}| \le 15\text{ mins}) \land (\operatorname{similarity}(\operatorname{norm\_title}(C.S), \operatorname{norm\_title}(E.\text{title})) \ge 0.80)$$
+
+3. **Worked Example**:
+- Circular: Date `2026-11-05`, Time `10:30 AM`, Title `"Sub: Board of Studies Meeting in CSE"`.
+- Existing Event: Date `2026-11-05`, Time `10:30 AM`, Title `"Board of Studies Meeting"`.
+- $\operatorname{norm\_title}(C) = \text{"board of studies meeting in cse"}$
+- $\operatorname{norm\_title}(E) = \text{"board of studies meeting"}$
+- Rapidfuzz token set ratio $\ge 0.90 \ge 0.80$, dates match, times match $\implies \operatorname{is\_duplicate} = \text{True}$.
+- Flagged in review queue with warning: `PROBABLE_DUPLICATE_OF_EVENT_ID`.
+
+4. **Complexity**:
+- Time complexity: $O(E_{\text{day}})$ where $E_{\text{day}}$ is number of events on that day ($\le 20 \implies < 1\text{ ms}$).
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_duplicate_predicate_worked_example`: Proves circular matching existing event date, time, and title is flagged as duplicate.
+
 
 ## 7. Date and Time Extraction
+
+### 7.1 Formal Time Grammar and Assumed Duration Invariant
+
+1. **Idea**:
+Collegiate meeting circulars employ informal time notations: `10:30 AM`, `10.30 am`, `1030 hrs`, `2 pm to 4 pm`, `14:00-15:30`. We define a formal regular grammar $\mathcal{G}_{\text{meeting\_time}}$ that unambiguously parses start and optional end times into 24-hour wall-clock timestamps. When an end time is omitted, the duration is assumed to be 60 minutes and flagged with `is_duration_assumed = True`.
+
+2. **Grammar Specification**:
+$$\begin{aligned}
+\text{Hour} &\to [0-1]?[0-9] \mid 2[0-3] \\
+\text{Minute} &\to [0-5][0-9] \\
+\text{Meridiem} &\to \text{"AM"} \mid \text{"PM"} \mid \text{"am"} \mid \text{"pm"} \mid \text{"a.m."} \mid \text{"p.m."} \\
+\text{Military} &\to (\text{Hour})(\text{Minute})\s*(\text{"hrs"} \mid \text{"hours"} \mid \text{"HRS"}) \\
+\text{StandardTime} &\to \text{Hour} ([:.] \text{Minute})? \s* \text{Meridiem}? \\
+\text{Separator} &\to \text{"-"} \mid \text{"to"} \mid \text{"until"} \mid \text{"--"} \\
+\text{TimeInterval} &\to \text{StandardTime} \s* \text{Separator} \s* \text{StandardTime}
+\end{aligned}$$
+
+Conversion to 24-hour:
+$$\operatorname{to\_24h}(h, m, \text{meridiem}) = \begin{cases}
+(h \bmod 12) + 12 & \text{if meridiem} \in \{\text{PM}, \text{pm}\} \\
+h \bmod 12 & \text{if meridiem} \in \{\text{AM}, \text{am}\} \\
+h & \text{if meridiem is None and } h \ge 8 \\
+h + 12 & \text{if meridiem is None and } h < 8 \text{ (afternoon assumption)}
+\end{cases}$$
+
+Duration Invariant:
+$$\Delta_{\text{duration}} = \begin{cases}
+T_{\text{end}} - T_{\text{start}} & \text{if interval matched and } T_{\text{end}} > T_{\text{start}} \\
+60\text{ minutes} & \text{otherwise, with } \text{is\_duration\_assumed} = \text{True}
+\end{cases}$$
+
+3. **Worked Examples**:
+- `"10:30 AM"`: $h=10, m=30 \implies 10:30$, no end time $\implies \Delta = 60\text{m}$, end $11:30$ (`assumed=True`).
+- `"10.30 am"`: $h=10, m=30 \implies 10:30$, end $11:30$ (`assumed=True`).
+- `"1030 hrs"`: $h=10, m=30 \implies 10:30$, end $11:30$ (`assumed=True`).
+- `"2 pm to 4 pm"`: $h_1=14, m_1=0, h_2=16, m_2=0 \implies [14:00, 16:00)$, duration $120\text{m}$ (`assumed=False`).
+- `"14:00-15:30"`: $h_1=14, m_1=0, h_2=15, m_2=30 \implies [14:00, 15:30)$, duration $90\text{m}$ (`assumed=False`).
+
+4. **Edge Cases**:
+- Midnight-crossing interval in day circular: In collegiate context, intervals where $T_{\text{end}} \le T_{\text{start}}$ (e.g. `11 am to 1 pm` where `1` omitted pm) are resolved by adding 12 hours to $T_{\text{end}}$ ($13:00$).
+- Trailing punctuation: Cleaned prior to regex evaluation.
+
+5. **Complexity**:
+- Time complexity: $O(L)$ regex scan where $L \le 5000$ characters ($< 1\text{ ms}$).
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_meeting_time_grammar_table`: Unit test asserting exact parsing across all 5 prompt example formats plus assumed duration flag.
+
+### 7.2 Date Extraction with Cue Words and Timezone Anchoring
+
+1. **Idea**:
+Date strings inside circulars are extracted using `dateparser` configured for Indian collegiate conventions (`DATE_ORDER = "DMY"`, `PREFER_DATES_FROM = "future"`, timezone `Asia/Kolkata`). To discriminate meeting event dates from administrative circular issuance dates, text proximity to cue words (`"meeting on"`, `"held on"`, `"scheduled on"`) is given preference over issuance cues (`"dated"`, `"ref no"`).
+
+2. **Algorithm**:
+- Step 1: Scan lines for meeting cue patterns:
+  $$\text{CuePattern} = \verb!(?:meeting\s+(?:on|held\s+on|scheduled\s+on)|held\s+on|on\s+date)\s*([^\n,;]+)!i$$
+- Step 2: If cue pattern matches, parse captured substring with `dateparser`.
+- Step 3: If no meeting cue matches, parse all candidate dates in the document. Exclude dates that appear after issuance cues (`"dated:"`, `"date:"`) if other future dates exist in the body.
+- Step 4: Anchor parsed local date $D$ with start time $T_{\text{start}}$ in `Asia/Kolkata` wall-clock time and convert to UTC for database storage.
+
+3. **Worked Example**:
+Header: `"Ref: CSE/CIR/2026/104    Dated: 24/10/2026"`
+Body: `"All faculty members are requested to attend a meeting on 28.10.2026 at 3:00 PM in the Seminar Hall."`
+- Step 1 matches `"meeting on 28.10.2026"`.
+- Captured string: `"28.10.2026"`.
+- `dateparser` with DMY resolves to `date(2026, 10, 28)`.
+- Combined with `15:00` in `Asia/Kolkata`:
+  - Local: `2026-10-28 15:00:00+05:30`.
+  - UTC: `2026-10-28T09:30:00Z`.
+
+4. **Edge Cases**:
+- Ambiguous date format `05/06/2026`: DMY interpretation resolves to 5th June 2026, consistent with Indian academic calendar conventions.
+- Relative date tokens (`"tomorrow"`, `"next Monday"`): Resolved relative to circular issuance date or current system date.
+
+5. **Complexity**:
+- Time complexity: $O(N_{\text{lines}})$ scan plus $O(1)$ date parsing ($< 5\text{ ms}$).
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_date_extraction_cue_preference`: Proves body meeting date is preferred over header issuance date.
+
 
 ## 8. Task Priority and Alerts
 

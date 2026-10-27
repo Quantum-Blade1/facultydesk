@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "07",
+  "current_stage": "08",
   "stages": [
     {
       "id": "01",
@@ -182,12 +182,32 @@
     {
       "id": "07",
       "file": "07-circular-ocr.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T20:06:00+05:30",
+      "finished_at": "2026-10-27T20:39:00+05:30",
+      "commit": "pending",
+      "tasks": [
+        "specify length-weighted confidence, deskew angle, duplicate predicate, and meeting time grammar in docs/MATHS.md",
+        "create synthetic sample circulars corpus (6 files: clean PDF, scanned PDF, skewed photo, low-light photo, table initials, all faculty)",
+        "implement OpenCV preprocessor with Grayscale, Non-Local Means denoising, Adaptive Gaussian threshold, and MinAreaRect deskew",
+        "implement OcrEngine with dual-PSM (PSM 6 uniform text block with PSM 4 variable column/table fallback)",
+        "implement field extraction (date with cue-word priority, meeting time grammar with 60m assumed duration, venue, attendee resolution)",
+        "implement duplicate detector checking calendar day, start time window, and normalized title token-set similarity",
+        "implement upload, process, list review queue, confirm, and reject use cases",
+        "wire Celery worker task for async circular processing",
+        "wire circulars FastAPI router (/api/circulars/upload, /review-queue, /{id}, /{id}/confirm, /{id}/reject)",
+        "write unit tests for maths, formal time grammar, deskew angle, and review gate matrix",
+        "write integration tests covering all 6 sample circulars and review queue event creation",
+        "write and run live verification script verify_stage_07.py",
+        "update docs/PROJECT.md, docs/DECISIONS.md, and render SVG sequence/state diagrams"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 116 source files; 61 passed in 10.38s",
+        "test_ocr_maths.py -> 8 passed (confidence formula, hypothesis bounds, deskew threshold, 5-format time grammar, duplicate predicate, review gate decision matrix)",
+        "test_circular_pipeline.py -> 1 passed testing all 6 sample circulars (clean text, scanned, skewed, low light, table initials, all faculty), review queue, and calendar event creation",
+        "Live verification verify_stage_07.py -> Uploaded 01_clean_text.pdf, extracted 100% confidence, date 2026-11-05, time 10:30, venue Seminar Hall, attendees KKS and RS; confirmed via review queue; created Calendar Event; planned 12 Stage 06 scheduled notifications with 24h, 1h, 10m offsets",
+        "docs/diagrams/circular_scanning_sequence.svg, circular_state_machine.svg, and stage_07_decisions.svg rendered and verified"
+      ]
     },
     {
       "id": "08",

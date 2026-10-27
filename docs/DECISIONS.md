@@ -230,8 +230,8 @@ flowchart TD
 ```mermaid
 flowchart LR
     EventHook["Event Create / Reschedule"] --> Planner["ReminderPlanner"]
-    Planner --> Rules["ReminderRules & QuietHours"]
-    Rules --> SchedDB[("PostgreSQL: scheduled_notifications")]
+    Rules["ReminderRules & QuietHours"] --> Planner
+    Planner --> SchedDB[("PostgreSQL: scheduled_notifications")]
     Beat["Celery Beat (30s)"] --> Claim["SELECT FOR UPDATE SKIP LOCKED"]
     Claim --> SchedDB
     Claim --> Dispatcher["ReminderDispatcher"]
@@ -241,6 +241,48 @@ flowchart LR
     Dispatcher --> Sent["Mark SENT / Backoff Retry"]
     Sent --> SchedDB
 ```
+
+- **Stage 07: Meeting circular scanning, extraction and review queue**
+  - What we built:
+    - Multi-format circular ingestion router (`POST /api/circulars/upload`) accepting PDF, PNG, and JPEG uploads up to 15 MB, streaming to MinIO and creating `Circular` in `UPLOADED` state.
+    - Asynchronous Celery worker task (`process_circular_upload`) running isolated async sessions with `NullPool` to process rasterization, OpenCV preprocessing, OCR, and field extraction.
+    - OpenCV image preprocessing pipeline: Grayscale conversion, fast Non-Local Means denoising, adaptive Gaussian thresholding, and Minimum-Area Bounding Rectangle deskewing ($|\theta| \ge 0.5^\circ$).
+    - Dual-PSM Tesseract OCR engine (PSM 6 uniform text block with PSM 4 variable column/table fallback) computing length-weighted document confidence score $C = \frac{\sum \operatorname{len}(w_i) \cdot c_i}{\sum \operatorname{len}(w_i)}$.
+    - Field extraction engine parsing: meeting date with cue-word priority (`meeting on`, `held on`), formal regular meeting time grammar $\mathcal{G}_{\text{meeting\_time}}$ with assumed 60-minute duration invariant, venue extraction, and attendee resolution (exact initials, aliases, fuzzy name matching, and "all faculty" mapping).
+    - Review queue gate predicate protecting faculty calendars, routing low-confidence or unconfirmed circulars to HOD review (`NEEDS_REVIEW`) with structured human-readable reasons.
+    - Duplicate detection predicate flagging circulars with matching date, start time window ($\pm 15$m), and normalized title similarity against existing calendar events.
+    - Confirmation and rejection use cases (`POST /api/circulars/{id}/confirm`, `POST /api/circulars/{id}/reject`) allowing HODs to edit extracted fields, create confirmed `MEETING` events on attendee calendars, and schedule multi-channel Stage 06 reminders.
+    - Synthetic sample circular test corpus in `samples/circulars/` covering clean PDF with text layer, scanned PDF, skewed photo, low-light photo, table initials, and all-faculty notices.
+  - Why this way:
+    - Length-weighted mean document confidence prevents single-character dirt artifacts or punctuation from unjustly penalizing clean, legible text documents.
+    - Dual-PSM execution ensures both single-block memos and multi-column attendee tables are captured without truncating table rows.
+    - Skipping deskew rotation for angles under $0.5^\circ$ prevents unnecessary bicubic resampling blur on already upright document scans.
+    - Formal time regular grammar guarantees deterministic resolution of collegiate time formats (`10:30 AM`, `10.30 am`, `1030 hrs`, `2 pm to 4 pm`, `14:00-15:30`) and enforces the 60-minute duration assumption.
+    - Routing all circulars through the review queue unless explicitly configured for auto-confirmation prevents phantom or misattributed events from reaching faculty calendars.
+  - What we rejected and why:
+    - Arithmetic mean OCR confidence: rejected because misrecognized 1-character artifacts (e.g. dots or dust) drag confidence down significantly, falsely failing the 70% quality gate.
+    - Direct synchronous OCR in FastAPI request handler: rejected because image deskewing, rasterization, and Tesseract invocation take 500ms–2000ms, which would block ASGI worker event loops.
+    - Blindly auto-confirming extracted circulars by default: rejected to protect calendar integrity; human confirmation is essential in academic administration unless explicitly opted in by department policy.
+  - Risks and how they are contained:
+    - Low-light or degraded mobile photos: contained by OpenCV adaptive Gaussian thresholding and review queue gate flagging `LOW_DOCUMENT_CONFIDENCE`.
+    - Double uploads by different administrators: contained by duplicate detection predicate checking calendar date, $\pm 15$m start time window, and token-set title similarity.
+    - Celery task crash: contained by `try...except` block marking circular as `FAILED` with failure reason, permitting retry.
+
+```mermaid
+flowchart LR
+    Upload["Upload PDF / Image"] --> MinIO[("MinIO S3 Storage")]
+    Upload --> Worker["Celery Worker"]
+    Worker --> Pre["OpenCV Preprocessor (Denoise / Deskew)"]
+    Pre --> OCR["Tesseract Dual-PSM (6 / 4)"]
+    OCR --> Ext["Field Extractor (Date / Time / Attendees)"]
+    Ext --> Gate{"Passes Gate & Auto-Confirm?"}
+    Gate -- No --> ReviewQueue["HOD Review Queue (NEEDS_REVIEW)"]
+    ReviewQueue --> Confirm["HOD Confirm / Edit"]
+    Gate -- Yes --> Confirm
+    Confirm --> Calendar["Calendar Event (MEETING)"]
+    Calendar --> Reminders["Scheduled Notifications (Stage 06)"]
+```
+
 
 
 

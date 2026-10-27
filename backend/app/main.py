@@ -11,6 +11,7 @@ from sqlalchemy import text
 from app.api.routers import (
     auth_router,
     calendar_router,
+    circulars_router,
     directory_router,
     reminders_router,
     timetable_router,
@@ -49,6 +50,7 @@ app.include_router(directory_router, prefix="/api")
 app.include_router(timetable_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
 app.include_router(reminders_router, prefix="/api")
+app.include_router(circulars_router, prefix="/api")
 
 
 

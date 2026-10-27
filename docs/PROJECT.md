@@ -43,6 +43,13 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Stale `SENDING` notification worker recovery protecting against worker crashes.
 - Configurable reminder rules per event kind (`CLASS`, `MEETING`, `DEADLINE`) with offsets and channel preferences.
 - User-specific quiet hours window ($Q = [q_s, q_e)$) supporting midnight-crossing windows and emergency morning class start exemptions.
+- Meeting circular upload pipeline supporting PDFs, PNG, and JPEG up to 15 MB with byte-level MIME validation.
+- OCR preprocessing engine: Grayscale conversion, Non-Local Means denoising, Adaptive Gaussian thresholding, and Minimum-Area Bounding Rectangle deskewing ($|\theta| \ge 0.5^\circ$).
+- Dual-PSM Tesseract OCR engine (PSM 6 uniform text block with PSM 4 variable column/table layout fallback) computing length-weighted document confidence $C = \frac{\sum \operatorname{len}(w_i) \cdot c_i}{\sum \operatorname{len}(w_i)}$.
+- Field extraction engine: Date parsing with cue-word priority (`meeting on`, `held on`), regular meeting time grammar $\mathcal{G}_{\text{meeting\_time}}$ (handling 5 time formats with assumed 60-minute duration invariant), venue extraction, and attendee resolution (exact initials, aliases, fuzzy full name, and "all faculty" mapping).
+- Review queue gate predicate protecting faculty calendars, routing low-confidence or unconfirmed circulars to HOD review with human-readable reasons.
+- Duplicate detection predicate checking calendar day, start time window ($\pm 15$m), and normalized title similarity against existing events.
+- Circular confirmation workflow creating `MEETING` events on all attendees' calendars and scheduling multi-channel Stage 06 reminders.
 - Docker Compose development and production environments with health checks on all services including Mailpit SMTP testing server.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
@@ -518,6 +525,54 @@ sequenceDiagram
             end
         end
     end
+```
+
+### 4.11 Meeting Circular Scanning, Extraction, and Review Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor HOD as HOD / Faculty
+    participant API as Circulars Router
+    participant MinIO as Storage (MinIO)
+    participant Task as Celery Worker
+    participant Pre as Image Preprocessor
+    participant OCR as Tesseract Dual-PSM
+    participant Ext as Field Extractor
+    participant DB as Postgres Database
+    participant EventUC as Calendar Engine
+
+    HOD->>API: POST /api/circulars/upload (file, dept_id)
+    API->>MinIO: upload_file(key, bytes)
+    API->>DB: INSERT INTO circulars (status=UPLOADED)
+    API->>Task: process_circular_upload.delay(circular_id)
+    API-->>HOD: 202 Accepted (circular_id)
+
+    Task->>DB: UPDATE circulars SET status=PROCESSING
+    Task->>MinIO: download_file(file_key)
+    alt PDF has text layer
+        Task->>Task: extract_text()
+    else Scanned image or PDF
+        Task->>Pre: rasterise & preprocess (denoise, threshold, deskew)
+        Pre-->>Task: clean_image, angle
+        Task->>OCR: extract_text (PSM 6 -> PSM 4)
+        OCR-->>Task: text, word_boxes, length_weighted_confidence
+    end
+
+    Task->>Ext: extract(text, confidence, faculty_profiles)
+    Ext-->>Task: extraction_result (date, time, venue, attendees, reasons)
+    Task->>DB: UPDATE circulars (status=NEEDS_REVIEW, extracted_fields)
+
+    HOD->>API: GET /api/circulars/review-queue
+    API->>DB: SELECT * FROM circulars WHERE status=NEEDS_REVIEW
+    API-->>HOD: 200 OK (queue items with extracted fields)
+
+    HOD->>API: POST /api/circulars/{id}/confirm (edited fields)
+    API->>EventUC: CreateEventUseCase(MEETING, start, end, venue, attendees)
+    EventUC->>DB: INSERT INTO events & event_attendees
+    EventUC->>DB: INSERT INTO scheduled_notifications (offsets: 24h, 1h, 10m)
+    API->>DB: UPDATE circulars SET status=CONFIRMED
+    API-->>HOD: 200 OK (Event details)
 ```
 
 ## 5. How to run, test and deploy

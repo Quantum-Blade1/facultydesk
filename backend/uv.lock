@@ -948,6 +948,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "types-dateparser" },
     { name = "types-openpyxl" },
     { name = "types-python-dateutil" },
     { name = "types-redis" },
@@ -993,6 +994,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.0" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "ruff", specifier = ">=0.8.0" },
+    { name = "types-dateparser" },
     { name = "types-openpyxl", specifier = ">=3.1.5.20261017" },
     { name = "types-python-dateutil", specifier = ">=2.9.0.20241001" },
     { name = "types-redis", specifier = ">=4.6.0.20241004" },
@@ -3316,6 +3318,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/04/bb/dbb844365103e4dc6ea52cdae0946c3ca55a7b8587e6f351710d7ee5bb78/types_cffi-2.1.0.20260827.tar.gz", hash = "sha256:53d1604771ad4ff09a1a90d6f6980ab36bebb6c39476dcc5bbf4896fa510d736", size = 18150, upload-time = "2026-08-27T12:07:21.754Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0c/fc/690c243ddac627901f1448f5cb29ca3b5463774a00ac932862c60d7ce5cf/types_cffi-2.1.0.20260827-py3-none-any.whl", hash = "sha256:851b6ffa5b962c577a2330b98ac0b60c56c904d086726276946388f58a0cffaf", size = 20525, upload-time = "2026-08-27T12:07:20.836Z" },
+]
+
+[[package]]
+name = "types-dateparser"
+version = "1.4.3.20260907"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/6d/972e78e416abb6cdc0cb6e803fec1bbc58f49e7962ecca3b1b660a799bc9/types_dateparser-1.4.3.20260907.tar.gz", hash = "sha256:b491f801efcd263ea5de9485cdb3631c44b6ee9af8e9b984c49d973c46a14d26", size = 18397, upload-time = "2026-09-07T06:43:18.929Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/5a/4fc8ea9c86e10465e820f920bc4983137c356b75b12b81574bb9b4d42605/types_dateparser-1.4.3.20260907-py3-none-any.whl", hash = "sha256:344c979fe7c0633f0a4f5098d7b26402a4969806ef7fc22f902d303f061593e1", size = 25729, upload-time = "2026-09-07T06:43:18.074Z" },
 ]
 
 [[package]]

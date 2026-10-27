@@ -3,6 +3,7 @@ from app.workers.calendar_tasks import (
     materialise_timetable_upload,
 )
 from app.workers.celery_app import celery_app
+from app.workers.circular_tasks import process_circular_upload
 from app.workers.reminder_tasks import (
     dispatch_due_notifications,
     recover_stale_sending_notifications,
@@ -14,6 +15,7 @@ __all__ = [
     "dispatch_due_notifications",
     "materialise_all_timetable_events",
     "materialise_timetable_upload",
+    "process_circular_upload",
     "process_timetable_upload",
     "recover_stale_sending_notifications",
 ]
