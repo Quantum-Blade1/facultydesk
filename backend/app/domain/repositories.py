@@ -11,6 +11,7 @@ from app.domain.entities import (
     Event,
     FacultyProfile,
     Holiday,
+    RefreshToken,
     ScheduledNotification,
     Task,
     User,
@@ -178,6 +179,24 @@ class AuditLogRepository(ABC):
         """List audit entries associated with a specific resource."""
 
 
+class RefreshTokenRepository(ABC):
+    @abstractmethod
+    async def get_by_hash(self, token_hash: str) -> RefreshToken | None:
+        """Fetch refresh token by its SHA-256 hash."""
+
+    @abstractmethod
+    async def save(self, token: RefreshToken) -> RefreshToken:
+        """Persist a refresh token record."""
+
+    @abstractmethod
+    async def revoke_family(self, family_id: UUID) -> None:
+        """Revoke all tokens belonging to a family."""
+
+    @abstractmethod
+    async def revoke_all_for_user(self, user_id: UUID) -> None:
+        """Revoke all refresh tokens for a user."""
+
+
 class UnitOfWork(ABC):
     departments: DepartmentRepository
     users: UserRepository
@@ -188,6 +207,7 @@ class UnitOfWork(ABC):
     notifications: NotificationRepository
     tasks: TaskRepository
     audit_logs: AuditLogRepository
+    refresh_tokens: RefreshTokenRepository
 
     @abstractmethod
     async def __aenter__(self) -> Self:

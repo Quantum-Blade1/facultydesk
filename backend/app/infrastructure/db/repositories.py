@@ -3,7 +3,7 @@ from typing import Self
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
@@ -30,6 +30,8 @@ from app.domain import (
     NotificationChannel,
     NotificationRepository,
     NotificationStatus,
+    RefreshToken,
+    RefreshTokenRepository,
     Role,
     ScheduledNotification,
     Task,
@@ -48,6 +50,7 @@ from app.infrastructure.db.models import (
     EventModel,
     FacultyProfileModel,
     HolidayModel,
+    RefreshTokenModel,
     ScheduledNotificationModel,
     TaskModel,
     UserModel,
@@ -173,6 +176,18 @@ def audit_log_to_domain(m: AuditLogModel) -> AuditLog:
         resource_id=m.resource_id,
         payload=dict(m.payload),
         timestamp_utc=m.timestamp_utc,
+    )
+
+
+def refresh_token_to_domain(m: RefreshTokenModel) -> RefreshToken:
+    return RefreshToken(
+        id=m.id,
+        user_id=m.user_id,
+        token_hash=m.token_hash,
+        family_id=m.family_id,
+        is_revoked=m.is_revoked,
+        expires_at_utc=m.expires_at_utc,
+        created_at_utc=m.created_at_utc,
     )
 
 
@@ -662,6 +677,54 @@ class AuditLogRepositoryImpl(AuditLogRepository):
         return [audit_log_to_domain(m) for m in result.scalars().all()]
 
 
+class RefreshTokenRepositoryImpl(RefreshTokenRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_hash(self, token_hash: str) -> RefreshToken | None:
+        stmt = select(RefreshTokenModel).where(RefreshTokenModel.token_hash == token_hash)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return refresh_token_to_domain(model) if model else None
+
+    async def save(self, token: RefreshToken) -> RefreshToken:
+        model = await self._session.get(RefreshTokenModel, token.id)
+        if model is None:
+            model = RefreshTokenModel(
+                id=token.id,
+                user_id=token.user_id,
+                token_hash=token.token_hash,
+                family_id=token.family_id,
+                is_revoked=token.is_revoked,
+                expires_at_utc=token.expires_at_utc,
+                created_at_utc=token.created_at_utc,
+            )
+            self._session.add(model)
+        else:
+            model.is_revoked = token.is_revoked
+            model.expires_at_utc = token.expires_at_utc
+        await self._session.flush()
+        return refresh_token_to_domain(model)
+
+    async def revoke_family(self, family_id: UUID) -> None:
+        stmt = (
+            update(RefreshTokenModel)
+            .where(RefreshTokenModel.family_id == family_id)
+            .values(is_revoked=True)
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
+
+    async def revoke_all_for_user(self, user_id: UUID) -> None:
+        stmt = (
+            update(RefreshTokenModel)
+            .where(RefreshTokenModel.user_id == user_id)
+            .values(is_revoked=True)
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
+
+
 class SqlAlchemyUnitOfWork(UnitOfWork):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -678,6 +741,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.notifications = NotificationRepositoryImpl(self._session)
         self.tasks = TaskRepositoryImpl(self._session)
         self.audit_logs = AuditLogRepositoryImpl(self._session)
+        self.refresh_tokens = RefreshTokenRepositoryImpl(self._session)
         return self
 
     async def __aexit__(

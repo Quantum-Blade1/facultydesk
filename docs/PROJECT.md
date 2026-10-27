@@ -18,10 +18,17 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Structured JSON logging (`structlog`) with distributed request ID tracking (`X-Request-ID`).
 - Health probes: `/healthz` (liveness) and `/readyz` (dependency readiness probing PostgreSQL `SELECT 1`, Redis `PING`, and MinIO bucket verification).
 - Interactive Frontend dashboard displaying real-time system readiness probe status.
-- Framework-free domain layer (`Department`, `User`, `FacultyProfile`, `Initials`, `AcademicTerm`, `Holiday`, `Room`, `Course`, `Section`, `TimetableUpload`, `TimetableSlot`, `Event`, `EventAttendee`, `Circular`, `ScheduledNotification`, `ReminderRule`, `PushSubscription`, `Task`, `AuditLog`).
+- Framework-free domain layer (`Department`, `User`, `FacultyProfile`, `Initials`, `AcademicTerm`, `Holiday`, `Room`, `Course`, `Section`, `TimetableUpload`, `TimetableSlot`, `Event`, `EventAttendee`, `Circular`, `ScheduledNotification`, `ReminderRule`, `PushSubscription`, `Task`, `AuditLog`, `RefreshToken`).
 - Deterministic finite state machines for `Circular` (7 transitions) and `ScheduledNotification` (5 transitions) raising typed `InvalidTransition` on illegal transitions.
-- Fully reversible Alembic migration (`8f3198838ebd_initial_schema.py`) supporting database schema creation and rollback.
+- Fully reversible Alembic migrations (`8f3198838ebd_initial_schema.py`, `8434d6a0dd0a_add_refresh_tokens.py`) supporting database schema creation, token rotation, and rollback.
 - Async SQLAlchemy repository implementations and `SqlAlchemyUnitOfWork`.
+- Authentication system with Argon2id password hashing, 15-minute HS256 access JWTs, and rotating 7-day refresh tokens delivered via httpOnly cookies.
+- Refresh token family reuse detection automatically revoking all tokens in a compromised family upon re-presentation.
+- Centralized `AuthorisationPolicy` evaluating ownership predicates across `ADMIN`, `HOD`, and `FACULTY` roles.
+- Redis-backed Sliding Window Log rate limiter protecting `/api/auth/login` (5/min per IP and account) and `/api/auth/refresh` (30/min per IP).
+- Faculty directory management with department CRUD, individual faculty creation/updates, deactivation, and bulk CSV/XLSX import with validation reports.
+- Academic calendar terms and holidays management supporting single entry and bulk CSV imports.
+- Synthetic database seeder (`make seed`) populating CSE department, Admin, HOD, 8 faculty profiles, academic term, and holidays.
 - Docker Compose development and production environments with health checks on all services.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
@@ -309,6 +316,46 @@ erDiagram
     }
 ```
 
+### 4.6 Authentication & Token Rotation Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Browser / Client
+    participant API as FastAPI Router
+    participant Limit as Redis RateLimiter
+    participant UC as Login / Refresh UseCase
+    participant DB as PostgreSQL
+    participant Cookie as httpOnly Cookie
+
+    Note over Client, DB: Step 1: Initial Login
+    Client->>API: POST /api/auth/login {email, password}
+    API->>Limit: check_and_consume(ip, account)
+    Limit-->>API: Allow (within 5/min limit)
+    API->>UC: execute(email, password)
+    UC->>DB: Verify user & argon2id hash
+    UC->>DB: Save RefreshToken (Family F1, Token T0)
+    UC-->>API: Access JWT + Raw RefreshToken T0
+    API->>Cookie: Set-Cookie refresh_token=T0 (httpOnly, Lax)
+    API-->>Client: 200 OK {access_token, user, profile}
+
+    Note over Client, DB: Step 2: Token Rotation
+    Client->>API: POST /api/auth/refresh (Cookie: T0)
+    API->>Limit: check_and_consume(ip)
+    Limit-->>API: Allow (within 30/min limit)
+    API->>UC: execute(T0)
+    UC->>DB: Find token by hash(T0)
+    alt T0 is active
+        UC->>DB: Mark T0 revoked
+        UC->>DB: Save RefreshToken (Family F1, Token T1)
+        API->>Cookie: Set-Cookie refresh_token=T1
+        API-->>Client: 200 OK {access_token}
+    else T0 is already revoked (Reuse Attack)
+        UC->>DB: Revoke all tokens in Family F1
+        API-->>Client: 401 Unauthorized (Family Revoked)
+    end
+```
+
 ## 5. How to run, test and deploy
 
 ### Prerequisites
@@ -327,6 +374,9 @@ docker compose ps
 
 # Run database migrations
 make migrate
+
+# Seed synthetic departments, users, term, and holidays
+make seed
 
 # Run quality checks (lint, typecheck, targeted tests)
 make lint

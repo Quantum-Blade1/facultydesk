@@ -75,20 +75,20 @@ async def test_round_trip_all_aggregates() -> None:
 
         term = AcademicTerm(
             id=uuid4(),
-            name="Odd Semester 2026",
-            start_date=date(2026, 8, 1),
-            end_date=date(2026, 12, 15),
+            name="Odd Semester 2028",
+            start_date=date(2028, 8, 1),
+            end_date=date(2028, 12, 15),
             timezone="Asia/Kolkata",
         )
         await uow.academic_terms.save(term)
-        active_term = await uow.academic_terms.get_active_term(date(2026, 9, 15))
+        active_term = await uow.academic_terms.get_active_term(date(2028, 9, 15))
         assert active_term is not None
         assert active_term.id == term.id
 
         holiday = Holiday(
             id=uuid4(),
             academic_term_id=term.id,
-            date=date(2026, 10, 2),
+            date=date(2028, 10, 2),
             label="Gandhi Jayanti",
         )
         await uow.academic_terms.save_holiday(holiday)

@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from minio import Minio
 from sqlalchemy import text
 
+from app.api.routers import auth_router, directory_router
 from app.core.config import get_settings
 from app.core.db import engine
 from app.core.errors import FacultyDeskError
@@ -37,6 +38,10 @@ app.add_middleware(
 )
 app.add_middleware(RequestIdMiddleware)
 
+app.include_router(auth_router, prefix="/api")
+app.include_router(directory_router, prefix="/api")
+
+
 
 @app.exception_handler(FacultyDeskError)
 async def domain_exception_handler(request: Request, exc: FacultyDeskError) -> JSONResponse:
@@ -51,6 +56,8 @@ async def domain_exception_handler(request: Request, exc: FacultyDeskError) -> J
         status_code = status.HTTP_409_CONFLICT
     elif exc.code == "VALIDATION_ERROR" or exc.code == "INVALID_TRANSITION":
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    elif exc.code == "RATE_LIMIT_EXCEEDED":
+        status_code = status.HTTP_429_TOO_MANY_REQUESTS
 
     return JSONResponse(
         status_code=status_code,

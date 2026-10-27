@@ -1,5 +1,8 @@
+import hashlib
+import secrets
 from datetime import timedelta
 from typing import Any
+from uuid import uuid4
 
 import jwt
 from argon2 import PasswordHasher
@@ -24,9 +27,18 @@ def verify_password(hash_value: str, password: str) -> bool:
         return False
 
 
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def hash_refresh_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
 def create_access_token(
     subject: str,
     role: str,
+    department_id: str | None = None,
     expires_delta: timedelta | None = None,
     clock: Clock | None = None,
 ) -> str:
@@ -40,8 +52,10 @@ def create_access_token(
     payload: dict[str, Any] = {
         "sub": subject,
         "role": role,
+        "dept": department_id,
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
+        "jti": uuid4().hex,
         "type": "access",
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")

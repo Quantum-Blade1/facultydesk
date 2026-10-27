@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "03",
+  "current_stage": "04",
   "stages": [
     {
       "id": "01",
@@ -57,12 +57,34 @@
     {
       "id": "03",
       "file": "03-auth-and-directory.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T08:09:00+05:30",
+      "finished_at": "2026-10-27T08:38:00+05:30",
+      "commit": "2f16596",
+      "tasks": [
+        "spec token rotation & rate limit maths in docs/MATHS.md",
+        "create refresh_tokens schema and migration",
+        "implement auth use cases with Argon2id and refresh rotation",
+        "implement authorisation policy object in application layer",
+        "implement faculty directory use cases and bulk CSV/XLSX import",
+        "wire auth and directory FastAPI routers and rate limiting",
+        "implement make seed with realistic synthetic data",
+        "create samples/faculty.csv",
+        "write policy matrix and token rotation unit/integration tests",
+        "verify with curl commands end-to-end",
+        "update docs/PROJECT.md, MATHS.md, DECISIONS.md"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 53 source files; 22 passed in 3.04s",
+        "alembic upgrade head -> Reversible migration 8434d6a0dd0a_add_refresh_tokens.py applied cleanly",
+        "make seed -> Idempotently seeded CSE department, Admin, HOD, 8 faculty profiles, Odd Semester 2026-27 term, 5 holidays",
+        "curl /api/auth/login -> 200 OK with access_token and httpOnly refresh_token cookie",
+        "curl /api/auth/refresh -> 200 OK rotated refresh token and issued fresh access token",
+        "curl /api/auth/refresh (replayed old token) -> 401 Unauthorized compromised token family revoked",
+        "curl /api/directory/faculty -> 403 Forbidden when FACULTY attempts to create faculty",
+        "curl /api/directory/faculty -> 403 Forbidden when HOD attempts to create outside department; 201 Created within department",
+        "curl /api/directory/faculty/bulk-import -> 200 OK report: 5 rows (2 created/updated, 3 rejected for invalid email, batch duplicate initials, dept initials clash)"
+      ]
     },
     {
       "id": "04",
@@ -160,6 +182,8 @@
     "Adopted cgr.dev/chainguard/minio:latest for MinIO and MinIO client because official minio/minio images were removed from public Docker Hub.",
     "Stopped legacy cmg_* containers occupying ports 5432, 6379, 8000, 9000 without deleting volumes or data.",
     "Added allowBuilds for unrs-resolver in frontend/pnpm-workspace.yaml due to pnpm v12 strict build policy.",
-    "Used standard property on Settings.DATABASE_URL without computed_field to satisfy strict mypy with zero type ignores."
+    "Used standard property on Settings.DATABASE_URL without computed_field to satisfy strict mypy with zero type ignores.",
+    "Used python-multipart for FastAPI file and form boundary parsing in bulk faculty and holiday imports.",
+    "Used string email representation in API schemas with application/domain validation to avoid adding email-validator dependency."
   ]
 }

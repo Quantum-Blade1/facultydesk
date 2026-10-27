@@ -13,7 +13,7 @@ migrate:
 	cd backend && uv run alembic upgrade head
 
 seed:
-	cd backend && uv run python -m app.infrastructure.seed
+	cd backend && uv run python -m app.infrastructure.seed.seed_data
 
 lint:
 	cd backend && uv run ruff check .

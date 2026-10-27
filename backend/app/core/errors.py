@@ -45,3 +45,13 @@ class ValidationError(FacultyDeskError):
 class InvalidTransition(FacultyDeskError):
     def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         super().__init__("INVALID_TRANSITION", message, details)
+
+
+class RateLimitExceededError(FacultyDeskError):
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__("RATE_LIMIT_EXCEEDED", message, details)
+

@@ -102,4 +102,37 @@ flowchart LR
     SQLModels --> Tables
 ```
 
+## Stage 03: Authentication, authorization, and faculty directory
+
+- What we built:
+  - Argon2id password verification and 15-minute access JWT generation with claims (`sub`, `role`, `dept`, `iat`, `exp`, `jti`).
+  - Refresh token rotation using 256-bit entropy tokens, stored as SHA-256 hashes, with family reuse detection automatically revoking compromised families.
+  - Centralized application-layer `AuthorisationPolicy` implementing the ownership matrix for `ADMIN`, `HOD`, and `FACULTY`.
+  - Redis sliding window log rate limiter protecting `/api/auth/login` (5/min per IP and account) and `/api/auth/refresh` (30/min per IP).
+  - Faculty directory routers and use cases: department listing, faculty CRUD, deactivation, and bulk CSV/XLSX import with row-by-row validation reports.
+  - Academic calendar terms and holidays endpoints supporting single entry and bulk CSV import.
+  - Database seeder (`make seed`) populating CSE department, Admin, HOD, 8 faculty profiles, academic term, and 5 holidays.
+- Why this way:
+  - Refresh token rotation ensures that refresh tokens are single-use credentials; reuse indicates exfiltration and invalidates the session family immediately.
+  - Enforcing authorization in the application layer decouples domain permissions from FastAPI routing primitives.
+  - Sliding window log avoids the 2x burst anomaly inherent in fixed window rate limiting.
+- What we rejected:
+  - Storing raw refresh tokens in PostgreSQL (only SHA-256 digests are persisted).
+  - Client-accessible refresh tokens in response bodies or LocalStorage (delivered strictly via `httpOnly`, `SameSite=Lax` cookies).
+  - Ad-hoc role checks in endpoint handlers (all access rules evaluated by `AuthorisationPolicy`).
+- Risks and how they are contained:
+  - Event loop connection reuse in pytest: contained via engine disposal fixture in `conftest.py`.
+  - Initials collision in department: contained via composite uniqueness constraint and pre-validation in `CreateFacultyUseCase` and `BulkImportFacultyUseCase`.
+
+```mermaid
+flowchart TD
+    Client["Client Request"] --> RateLimit["Redis Sliding Window Limiter"]
+    RateLimit --> AuthRouter["Auth / Directory Router"]
+    AuthRouter --> Policy["AuthorisationPolicy Matrix"]
+    Policy --> UseCase["Application Use Case"]
+    UseCase --> UoW["SqlAlchemyUnitOfWork"]
+    UoW --> DB[("PostgreSQL 16")]
+    UseCase --> Cookie["Set httpOnly Cookie (Rotated Refresh Token)"]
+```
+
 

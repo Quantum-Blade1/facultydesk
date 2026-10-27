@@ -451,3 +451,21 @@ class AuditLog:
             raise InvariantViolation("AuditLog action cannot be empty")
         if not self.resource_type.strip():
             raise InvariantViolation("AuditLog resource_type cannot be empty")
+
+
+@dataclass
+class RefreshToken:
+    id: UUID = field(default_factory=uuid4)
+    user_id: UUID = field(default_factory=uuid4)
+    token_hash: str = ""
+    family_id: UUID = field(default_factory=uuid4)
+    is_revoked: bool = False
+    expires_at_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
+    created_at_utc: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def revoke(self) -> None:
+        self.is_revoked = True
+
+    @property
+    def is_expired(self) -> bool:
+        return datetime.now(UTC) >= self.expires_at_utc
