@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import UTC, date, datetime, time
 from typing import Any
@@ -78,6 +79,13 @@ class FacultyProfileModel(Base):
     aliases: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    ics_token: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=False,
+        index=True,
+        default=lambda: secrets.token_urlsafe(32),
+    )
 
     user: Mapped[UserModel] = relationship(back_populates="profile")
     department: Mapped[DepartmentModel] = relationship(back_populates="faculty_profiles")
@@ -204,6 +212,7 @@ class EventModel(Base):
     __table_args__ = (
         CheckConstraint("end_utc > start_utc", name="ck_events_interval"),
         Index("ix_events_start_end", "start_utc", "end_utc"),
+        UniqueConstraint("source_id", "recurrence_date", name="uq_events_source_recurrence"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -214,6 +223,7 @@ class EventModel(Base):
     location: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     source_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    recurrence_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     created_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import get_settings
 
@@ -21,8 +22,13 @@ celery_app.conf.update(
             "task": "ping",
             "schedule": 60.0,
         },
+        "nightly-materialise-timetable-events": {
+            "task": "materialise_all_timetable_events",
+            "schedule": crontab(hour=0, minute=5),
+        },
     },
 )
+
 
 
 @celery_app.task(name="ping")

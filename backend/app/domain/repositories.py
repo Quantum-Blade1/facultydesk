@@ -76,6 +76,10 @@ class FacultyProfileRepository(ABC):
         """List all faculty profiles in a department."""
 
     @abstractmethod
+    async def get_by_ics_token(self, token: str) -> FacultyProfile | None:
+        """Fetch faculty profile by unique ICS subscription token."""
+
+    @abstractmethod
     async def save(self, profile: FacultyProfile) -> FacultyProfile:
         """Persist a faculty profile."""
 
@@ -120,6 +124,18 @@ class EventRepository(ABC):
     @abstractmethod
     async def delete(self, event_id: UUID) -> None:
         """Remove an event by its identifier."""
+
+    @abstractmethod
+    async def get_by_slot_and_date(
+        self, slot_id: UUID, recurrence_date: date
+    ) -> Event | None:
+        """Fetch event by timetable slot identifier and occurrence date."""
+
+    @abstractmethod
+    async def delete_future_by_slot(
+        self, slot_id: UUID, from_date: date
+    ) -> None:
+        """Delete future materialised timetable occurrences for a slot."""
 
 
 class CircularRepository(ABC):
@@ -218,6 +234,10 @@ class CourseRepository(ABC):
 
 class SectionRepository(ABC):
     @abstractmethod
+    async def get_by_id(self, section_id: UUID) -> Section | None:
+        """Fetch section by unique identifier."""
+
+    @abstractmethod
     async def get_by_course_and_name(self, course_id: UUID, name: str) -> Section | None:
         """Fetch section by course and section name."""
 
@@ -228,6 +248,10 @@ class SectionRepository(ABC):
 
 class RoomRepository(ABC):
     @abstractmethod
+    async def get_by_id(self, room_id: UUID) -> Room | None:
+        """Fetch room by unique identifier."""
+
+    @abstractmethod
     async def get_by_code(self, code: str) -> Room | None:
         """Fetch room by unique room code."""
 
@@ -236,14 +260,20 @@ class RoomRepository(ABC):
         """Persist a room."""
 
 
+
 class TimetableUploadRepository(ABC):
     @abstractmethod
     async def get_by_id(self, upload_id: UUID) -> TimetableUpload | None:
         """Fetch timetable upload by unique identifier."""
 
     @abstractmethod
+    async def list_by_term_id(self, term_id: UUID) -> list[TimetableUpload]:
+        """List all timetable uploads for an academic term."""
+
+    @abstractmethod
     async def save(self, upload: TimetableUpload) -> TimetableUpload:
         """Persist a timetable upload."""
+
 
 
 class TimetableSlotRepository(ABC):

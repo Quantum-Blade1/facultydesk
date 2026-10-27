@@ -152,9 +152,255 @@ The circular must first transition $\text{UPLOADED} \to \text{PROCESSING}$, then
 - `test_circular_state_machine_exhaustive`: Cartesian product property test over all 36 $(s_1, s_2) \in S_{\text{circ}} \times S_{\text{circ}}$, verifying that exactly the 7 transitions succeed and the remaining 29 raise `InvalidTransition`.
 - `test_notification_state_machine_exhaustive`: Cartesian product property test over all 25 $(s_1, s_2) \in S_{\text{notif}} \times S_{\text{notif}}$, verifying that exactly the 5 transitions succeed and the remaining 20 raise `InvalidTransition`.
 
-## 2. Clash Detection
+### 1.4 Recurrence Expansion and Rolling 21-Day Materialisation Window
+
+1. **Idea**:
+Timetable slots define recurring weekly classes associated with an academic term. Materialising the entire term (often 16 to 20 weeks) up front creates hundreds of redundant event records, complicates timetable updates, and produces dead rows if a timetable is revised mid-term. Conversely, computing occurrences on the fly on every calendar request and reminder query requires expensive rule evaluation and repeated holiday lookups on hot API paths. FacultyDesk adopts a deterministic rolling 21-day materialisation window: occurrences are materialised in the database for $[D_{\text{today}}, D_{\text{today}} + 21\text{ days}]$, refreshed nightly by a Celery Beat task and immediately upon timetable confirmation.
+
+2. **Formula and Invariants**:
+Let $T = [D_{\text{term\_start}}, D_{\text{term\_end}}]$ be the academic term date range.
+Let $w \in \{0, 1, 2, 3, 4, 5, 6\}$ be the zero-indexed day of the week ($0 = \text{Monday}, \dots, 6 = \text{Sunday}$).
+Let $H = \{h_1, h_2, \dots, h_m\}$ be the set of holiday dates within the term.
+The full theoretical recurrence set $R(w, T, H)$ is defined as:
+$$R(w, T, H) = \{ d \in [D_{\text{term\_start}}, D_{\text{term\_end}}] \mid \operatorname{weekday}(d) = w \} \setminus H$$
+
+For a current local date $D_{\text{today}}$ in `Asia/Kolkata`, the rolling 21-day window is defined as:
+$$W_{21}(D_{\text{today}}) = [D_{\text{today}}, D_{\text{today}} + 21\text{ days}]$$
+The materialisation date set $M$ for slot $s$ is the intersection:
+$$M(s, D_{\text{today}}) = R(s.\text{day\_of\_week}, T, H) \cap W_{21}(D_{\text{today}})$$
+
+For each $d \in M(s, D_{\text{today}})$:
+Given slot wall-clock time boundaries $[\tau_{\text{start}}, \tau_{\text{end}})$ with $\tau_{\text{start}} < \tau_{\text{end}}$:
+1. Combine into local timezone-aware datetimes in $Z = \text{Asia/Kolkata}$:
+$$L_{\text{start}} = \operatorname{datetime}(d, \tau_{\text{start}}, \operatorname{ZoneInfo}(Z))$$
+$$L_{\text{end}} = \operatorname{datetime}(d, \tau_{\text{end}}, \operatorname{ZoneInfo}(Z))$$
+2. Convert to canonical UTC:
+$$U_{\text{start}} = \operatorname{astimezone}(L_{\text{start}}, \text{UTC})$$
+$$U_{\text{end}} = \operatorname{astimezone}(L_{\text{end}}, \text{UTC})$$
+
+Idempotent Upsert Invariant:
+Every materialised timetable class event is keyed by the tuple:
+$$K = (\text{slot\_id}, d)$$
+where $\text{slot\_id} = s.\text{id}$ and $d \in M(s, D_{\text{today}})$.
+A second materialisation run on the same date window performs an idempotent `DO NOTHING` or update, guaranteeing zero duplicates.
+
+3. **Worked Example**:
+- Term: 2026-08-01 to 2026-12-15.
+- Slot: Wednesday ($w = 2$), 10:00 to 11:45 IST.
+- Holiday: Wednesday 2026-10-28 (Diwali Holiday).
+- Current date: Monday 2026-10-26.
+- Window $W_{21}$: $[2026-10-26, 2026-11-16]$.
+Candidate Wednesdays in window:
+- 2026-10-28: in holiday set $H \implies$ skipped.
+- 2026-11-04: $\notin H \implies$ materialised:
+  - Local: `2026-11-04 10:00:00+05:30` to `2026-11-04 11:45:00+05:30`
+  - UTC: `2026-11-04T04:30:00Z` to `2026-11-04T06:15:00Z`.
+- 2026-11-11: $\notin H \implies$ materialised:
+  - Local: `2026-11-11 10:00:00+05:30` to `2026-11-11 11:45:00+05:30`
+  - UTC: `2026-11-11T04:30:00Z` to `2026-11-11T06:15:00Z`.
+
+4. **Edge Cases**:
+- Term boundaries: If $D_{\text{today}} + 21\text{ days} > D_{\text{term\_end}}$, occurrences truncate at $D_{\text{term\_end}}$.
+- Slot removal or revision: When a timetable is re-confirmed or slots are replaced, future materialised events ($start\_utc \ge now$) from old slots are deleted before generating new ones.
+
+5. **Complexity**:
+- Time complexity: For $S$ slots over $K \le 4$ weeks, $O(S \cdot K)$ date calculations. With $S \approx 50$, $50 \times 4 = 200$ operations ($< 5\text{ ms}$).
+- Space complexity: $O(S \cdot K)$ rows.
+
+6. **Proof Plan**:
+- `test_recurrence_expansion_skips_holidays`: Property test verifying no generated date matches $H$.
+- `test_recurrence_expansion_matching_weekday`: Property test verifying $\operatorname{weekday}(d) = w$ for all generated dates.
+- `test_recurrence_expansion_utc_roundtrip`: Property test verifying $U_{\text{start}} \to Z \equiv (d, \tau_{\text{start}})$.
+
+## 2. Clash Detection and Calendar Operations
+
+### 2.1 Half-Open Overlap Predicate
+
+1. **Idea**:
+Two events conflict if and only if their active intervals share at least one non-zero duration temporal intersection. Using half-open intervals $[s, e)$, adjacent events where $e_1 = s_2$ do not clash.
+
+2. **Formula**:
+$$\operatorname{overlap}(I_1, I_2) \iff (I_1.\text{start} < I_2.\text{end}) \land (I_2.\text{start} < I_1.\text{end})$$
+For attendee $f$, events $E_1, E_2$ clash iff $f \in E_1.\text{attendees} \land f \in E_2.\text{attendees} \land \operatorname{overlap}(E_1, E_2)$.
+
+### 2.2 Sweep-Line Interval Clash Detection Algorithm
+
+1. **Idea**:
+Detecting all pairwise clashes among $n$ events by brute force takes $O(n^2)$. Using a sweep-line algorithm with a priority queue (min-heap), active events are maintained as the sweep line moves forward in time, achieving $O(n \log n + k)$ where $k$ is the number of reporting clashes.
+
+2. **Algorithm**:
+- Input: Array of $n$ events $E = [e_1, e_2, \dots, e_n]$, each with half-open interval $[s_i, e_i)$.
+- Step 1: Sort $E$ by start time ascending: $s_1 \le s_2 \le \dots \le s_n$.
+- Step 2: Initialize min-heap $H = \emptyset$, where each node is $(e_j, j)$, keyed by interval end time $e_j$.
+- Step 3: For $i = 1$ to $n$:
+  - While $H \ne \emptyset$ and $H.\operatorname{peek}().\text{end} \le s_i$:
+    $H.\operatorname{pop}()$ (interval $j$ ended at or before $s_i$, cannot overlap $e_i$ or any subsequent event).
+  - For every $(e_j, j) \in H$:
+    Report clash $(e_j, e_i)$ (since $s_j \le s_i < e_j$ and $s_j < e_i$, intervals overlap).
+  - $H.\operatorname{push}((e_i, i))$.
+- Output: Set of all clashing event pairs $\mathcal{C}$.
+
+3. **Worked Example**:
+Events:
+- $E_1: [09:00, 10:00)$
+- $E_2: [09:30, 10:30)$
+- $E_3: [10:00, 11:00)$
+- $E_4: [10:15, 10:45)$
+
+Trace:
+- $i=1 (E_1)$: $H = \emptyset$. Push $(10:00, E_1)$. $H = \{(10:00, E_1)\}$.
+- $i=2 (E_2)$: $s_2 = 09:30 < 10:00$. No pop.
+  - Check $H$: $E_1$ in $H \implies$ Report clash $(E_1, E_2)$.
+  - Push $(10:30, E_2)$. $H = \{(10:00, E_1), (10:30, E_2)\}$.
+- $i=3 (E_3)$: $s_3 = 10:00$.
+  - While $H.\operatorname{peek}().\text{end} \le 10:00$: pop $(10:00, E_1)$.
+  - Remaining in $H$: $\{(10:30, E_2)\}$.
+  - $10:30 > 10:00 \implies$ Report clash $(E_2, E_3)$.
+  - Push $(11:00, E_3)$. $H = \{(10:30, E_2), (11:00, E_3)\}$.
+- $i=4 (E_4)$: $s_4 = 10:15$.
+  - Min end in $H$ is $10:30 > 10:15$. No pop.
+  - Report clashes: $(E_2, E_4)$ and $(E_3, E_4)$.
+  - Push $(10:45, E_4)$.
+
+Total Clashes Reported: $(E_1, E_2), (E_2, E_3), (E_2, E_4), (E_3, E_4)$.
+Notice $(E_1, E_3)$ is NOT reported because $E_1$ ended at $10:00$ and $E_3$ started at $10:00$ (adjacent half-open intervals do not clash).
+
+4. **Edge Cases**:
+- Multiple events starting at the exact same instant $s_i = s_{i+1}$: Handled naturally; heap pop only occurs for $e_j \le s_i$.
+- Enclosed intervals ($I_1 \subset I_2$): Correctly identified since $e_2 > s_1$.
+
+5. **Complexity**:
+- Time complexity: $O(n \log n)$ for sorting + $O(n \log k + C)$ heap operations where $k$ is maximum concurrency and $C$ is number of overlaps.
+- Space complexity: $O(n)$ for event list and heap.
+
+6. **Proof Plan**:
+- `test_sweep_line_clash_detection_matches_pairwise_property`: Hypothesis property test comparing sweep-line results against $O(n^2)$ exhaustive pairwise checks across random intervals.
+- `test_adjacent_intervals_no_clash`: Property test verifying $[s, m)$ and $[m, e)$ produce zero clashes.
+
+### 2.3 Multi-Attendee Common Free-Slot Finder
+
+1. **Idea**:
+To schedule departmental meetings or collaborative reviews, the HOD or faculty member requires common free slots where all candidate attendees are available. The algorithm collects busy intervals of all attendees, merges overlapping or contiguous busy intervals, and computes the complement within daily working hours $[08:00, 18:00)$ in `Asia/Kolkata`. Any free interval with duration $\ge \Delta_{\text{req}}$ is returned.
+
+2. **Algorithm**:
+- Inputs:
+  - Attendees $A = \{a_1, a_2, \dots, a_m\}$.
+  - Search range: $[D_{\text{start}}, D_{\text{end}}]$.
+  - Working hours in local time: $[\tau_{\text{start}}, \tau_{\text{end}})$ (e.g., $08:00$ to $18:00$).
+  - Minimum duration: $\Delta_{\text{req}}$ minutes.
+- Step 1 (Busy Interval Union):
+  Query all events for each attendee $a \in A$ intersecting $[D_{\text{start}}, D_{\text{end}}]$.
+  Form the union set of busy intervals:
+  $$\mathcal{B} = \bigcup_{a \in A} \{ [e.\text{start\_utc}, e.\text{end\_utc}) \mid e \in \operatorname{events}(a) \}$$
+- Step 2 (Merge Busy Intervals):
+  Sort $\mathcal{B}$ by start time.
+  Merge any overlapping or contiguous intervals:
+  $$\text{if } s_{k+1} \le e_k \implies [s_k, \max(e_k, e_{k+1}))$$
+  Result: ordered, disjoint busy intervals $\mathcal{M} = [ [s_1, e_1), [s_2, e_2), \dots, [s_p, e_p) ]$.
+- Step 3 (Working Hours Complement):
+  For each day $d \in [D_{\text{start}}, D_{\text{end}}]$:
+  - Define local working window:
+    $$W_d = [ \operatorname{combine}(d, \tau_{\text{start}}), \operatorname{combine}(d, \tau_{\text{end}}) )$$
+  - Convert $W_d$ to UTC: $[w_s, w_e)$.
+  - Intersect merged busy intervals with $[w_s, w_e)$.
+  - Let intersecting busy blocks within the day be $[b_{1,s}, b_{1,e}), \dots, [b_{q,s}, b_{q,e})$.
+  - Free gaps within working hours:
+    - First candidate: $[w_s, b_{1,s})$ if $b_{1,s} > w_s$.
+    - Middle candidates: $[b_{i,e}, b_{i+1,s})$ for $i=1 \dots q-1$.
+    - Final candidate: $[b_{q,e}, w_e)$ if $w_e > b_{q,e}$.
+    - If no busy intervals exist on date $d$: candidate is entire $[w_s, w_e)$.
+  - Filter: keep candidate $[f_s, f_e)$ if $(f_e - f_s) \ge \Delta_{\text{req}}$.
+- Output: List of valid free slots $[f_s, f_e)$ sorted chronologically.
+
+3. **Worked Example**:
+- Attendees: Faculty A and Faculty B.
+- Date: 2026-10-27. Working hours: 09:00 to 17:00 IST ($03:30$ to $11:30$ UTC).
+- Faculty A busy: 10:00–11:00 IST ($04:30$–$05:30$ UTC) and 14:00–15:30 IST ($08:30$–$10:00$ UTC).
+- Faculty B busy: 10:30–12:00 IST ($05:00$–$06:30$ UTC).
+- Merged busy intervals:
+  - $[10:00, 11:00) \cup [10:30, 12:00) \implies [10:00, 12:00)$ IST.
+  - $[14:00, 15:30)$ IST.
+- Gaps in $[09:00, 17:00)$:
+  1. $[09:00, 10:00)$ (duration 60 min).
+  2. $[12:00, 14:00)$ (duration 120 min).
+  3. $[15:30, 17:00)$ (duration 90 min).
+- For $\Delta_{\text{req}} = 45\text{ min}$: all 3 gaps returned.
+- For $\Delta_{\text{req}} = 90\text{ min}$: gaps 2 and 3 returned.
+
+4. **Edge Cases**:
+- Entire working day free: Full day $[w_s, w_e)$ returned.
+- Entire working day busy: Empty list returned.
+- Multiple attendees with disjoint schedules covering the whole day: Empty list returned.
+
+5. **Complexity**:
+- Time complexity: $O(N \log N)$ where $N$ is total events across all attendees.
+- Space complexity: $O(N)$.
+
+6. **Proof Plan**:
+- `test_free_slots_never_intersect_busy_property`: Property test proving $\forall f \in \text{FreeSlots}, \forall b \in \mathcal{B}, \operatorname{overlap}(f, b) = \text{False}$.
+- `test_free_slots_duration_bound_property`: Property test proving $(f.\text{end} - f.\text{start}) \ge \Delta_{\text{req}}$ for all returned slots.
+
+### 2.4 RFC 5545 ICS Feed Specification
+
+1. **Idea**:
+Faculty calendar feeds must conform strictly to RFC 5545 Internet Calendaring and Scheduling Core Object Specification (iCalendar) to allow seamless subscription in Google Calendar, Apple Calendar, and Outlook. Feeds are exposed over an unauthenticated, token-gated HTTPS endpoint with a rotatable secret token.
+
+2. **Specification Rules**:
+- Container: `BEGIN:VCALENDAR ... END:VCALENDAR`.
+- Required VCALENDAR properties:
+  - `VERSION:2.0`
+  - `PRODID:-//FacultyDesk//Academic Calendar//EN`
+  - `CALSCALE:GREGORIAN`
+  - `METHOD:PUBLISH`
+  - `X-WR-CALNAME:FacultyDesk Schedule`
+  - `X-WR-TIMEZONE:UTC`
+- Event components (`BEGIN:VEVENT ... END:VEVENT`):
+  - `UID`: Globally unique, stable identifier.
+    - Timetable occurrences: `UID:slot-<slot_id>-<date>@facultydesk.local`
+    - Meetings / manual events: `UID:event-<event_id>@facultydesk.local`
+  - `DTSTAMP`: Current timestamp in UTC (`YYYYMMDDTHHMMSSZ`).
+  - `DTSTART`: Event start in UTC (`YYYYMMDDTHHMMSSZ`).
+  - `DTEND`: Event end in UTC (`YYYYMMDDTHHMMSSZ`).
+  - `SUMMARY`: Sanitized event title.
+  - `LOCATION`: Room code or meeting venue.
+  - `STATUS:CONFIRMED`.
+- Line folding: Lines longer than 75 octets are folded per RFC 5545 Section 3.1.
+- Character escaping: Commas, semicolons, and backslashes in text fields are escaped with backslash.
+
+3. **Worked Example**:
+```text
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FacultyDesk//Academic Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:FacultyDesk Schedule
+BEGIN:VEVENT
+UID:slot-4a94639e-2026-11-04@facultydesk.local
+DTSTAMP:20261027T133000Z
+DTSTART:20261104T043000Z
+DTEND:20261104T061500Z
+SUMMARY:CN (KKS)
+LOCATION:LH-101
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+```
+
+4. **Edge Cases**:
+- Special characters in title or location (e.g. `Lab A & B, Room 101`): Escaped per RFC 5545.
+- Token rotation: When token is rotated, the old token immediately returns HTTP 404, preventing unauthorized access.
+
+5. **Complexity**:
+- Time complexity: $O(E)$ where $E$ is number of events in range.
+- Space complexity: $O(E)$ memory buffer.
+
+6. **Proof Plan**:
+- `test_ics_export_valid_rfc5545`: Validates generated ICS payload with `icalendar.Calendar.from_ical()`.
+- `test_ics_export_stable_uids`: Verifies subsequent exports produce identical UIDs for occurrences.
 
 ## 3. Reminder Scheduling
+
 
 ## 4. Exactly-Once Delivery
 

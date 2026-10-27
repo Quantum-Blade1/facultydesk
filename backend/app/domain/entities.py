@@ -1,3 +1,4 @@
+import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
@@ -61,6 +62,7 @@ class FacultyProfile:
     aliases: tuple[str, ...] = field(default_factory=tuple)
     email: str = ""
     phone: str | None = None
+    ics_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     def __post_init__(self) -> None:
         if not self.full_name.strip():
@@ -230,6 +232,7 @@ class Event:
     location: str = ""
     source: EventSource = EventSource.MANUAL
     source_id: UUID | None = None
+    recurrence_date: date | None = None
     attendees: list[EventAttendee] = field(default_factory=list)
     domain_events: list[DomainEvent] = field(default_factory=list)
 

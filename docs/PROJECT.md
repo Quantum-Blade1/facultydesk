@@ -33,6 +33,11 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Deterministic 3-tier initials resolution (exact initials -> exact alias -> bounded normalized Levenshtein similarity with theta_sim >= 0.85 and theta_margin >= 0.10) preventing false matches.
 - Celery worker asynchronous parsing pipeline generating preview slots and detailed unmapped token issue reports.
 - Two-phase upload & confirm workflow creating `Course`, `Section`, `Room`, and `TimetableSlot` entities, and emitting `TimetableConfirmed` domain events.
+- Rolling 21-day class recurrence materialisation pipeline expanding weekly timetable slots, respecting term boundaries, and skipping academic holidays.
+- Sweep-line clash detection algorithm ($O(n \log n)$) evaluating half-open intervals $\max(s_1, s_2) < \min(e_1, e_2)$ across multiple attendees, with explicit override capability returning 409 Conflict with clash details.
+- Multi-attendee common free-slot finder detecting non-overlapping working intervals for meeting scheduling.
+- RFC 5545 compliant iCalendar (`.ics`) subscription feed with token gating, automatic token rotation, and stable UIDs (`slot-<slot_id>-<date>@facultydesk.local`).
+- Celery Beat nightly rolling materialisation task automatically advancing the 21-day window at midnight.
 - Docker Compose development and production environments with health checks on all services.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
@@ -430,6 +435,44 @@ sequenceDiagram
     API->>DB: Update TimetableUpload (Status: CONFIRMED)
     API->>Event: Emit TimetableConfirmed(upload_id, dept_id, term_id, slot_count)
     API-->>HOD: 200 OK {upload_id, slots_created, status: "CONFIRMED"}
+```
+
+### 4.9 Calendar Recurrence Materialisation and Sweep-Line Clash Detection
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Faculty / HOD / Admin
+    participant API as FastAPI Router
+    participant UC as Calendar UseCases
+    participant Clash as SweepLineClashDetector
+    participant DB as PostgreSQL
+    participant Ext as External Calendar (Apple/Google)
+
+    Note over User, DB: Scenario 1: Meeting Creation with Clash Detection
+    User->>API: POST /api/calendar/events {title, start, end, attendees, override: false}
+    API->>UC: CreateEventUseCase.execute(...)
+    UC->>DB: Fetch existing attendee events in [start, end)
+    UC->>Clash: detect_clashes(new_event, existing_events)
+    alt Overlap Detected: max(s1, s2) < min(e1, e2)
+        Clash-->>UC: Clashes list [attendee_id, title, start, end]
+        UC-->>API: raise ClashDetectedError(clashes)
+        API-->>User: 409 Conflict {message, clashes}
+    else No Overlap or override=true
+        UC->>DB: Save Event + EventAttendees
+        DB-->>UC: event
+        UC-->>API: event
+        API-->>User: 201 Created {event_id, title, start_utc, end_utc}
+    end
+
+    Note over User, Ext: Scenario 2: Token-Gated RFC 5545 ICS Feed Sync
+    Ext->>API: GET /api/calendar/ics/{feed_token}.ics
+    API->>UC: GenerateIcsFeedUseCase.execute(feed_token)
+    UC->>DB: Look up FacultyProfile by feed_token
+    UC->>DB: Query attendee events for faculty in window
+    UC->>UC: Generate VCALENDAR with stable UIDs & PRODID
+    UC-->>API: VCALENDAR text/calendar payload
+    API-->>Ext: 200 OK text/calendar; charset=utf-8
 ```
 
 ## 5. How to run, test and deploy

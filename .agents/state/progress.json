@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "05",
+  "current_stage": "06",
   "stages": [
     {
       "id": "01",
@@ -122,12 +122,33 @@
     {
       "id": "05",
       "file": "05-calendar-core.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T18:48:00+05:30",
+      "finished_at": "2026-10-27T19:28:00+05:30",
+      "commit": "3a0e66d",
+      "tasks": [
+        "spec recurrence expansion, interval overlap, sweep clash detection, and free-slot finder in docs/MATHS.md",
+        "implement RecurrenceService with dateutil.rrule and holiday filtering in Asia/Kolkata wall time converted to UTC",
+        "implement rolling 21-day materialisation service and nightly Celery beat task",
+        "implement ClashDetector service with O(n log n) interval sweep and override flags",
+        "implement FreeSlotFinder service across multiple attendees within working hours",
+        "implement manual event use cases (create, update, cancel) emitting domain events",
+        "implement ICS feed generator (RFC 5545) with secret user token and icalendar verification",
+        "wire calendar API endpoints (/api/calendar/events, /clashes, /free-slots, /ics/{token})",
+        "write property tests for clash sweep vs brute-force, occurrence properties, and free slot invariants",
+        "update docs/PROJECT.md and docs/DECISIONS.md with mermaid diagrams"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 86 source files; 44 passed in 9.35s",
+        "alembic upgrade head -> Reversible migration 9bad995bed3e_calendar_recurrence_and_ics applied cleanly",
+        "Rolling 21-day recurrence expansion materialises classes into indexed Event rows skipping gazetted holidays",
+        "POST /api/calendar/events -> 409 Conflict with clash details on overlapping meeting without override",
+        "POST /api/calendar/events (override_clashes=True) -> 201 Created",
+        "POST /api/calendar/free-slots -> 200 OK returning non-overlapping available intervals within working hours",
+        "GET /api/calendar/ics/{feed_token}.ics -> 200 OK RFC 5545 feed parsed cleanly by icalendar.Calendar.from_ical()",
+        "POST /api/calendar/ics/rotate-token -> 200 OK rotated token and updated feed URL",
+        "Celery Beat scheduled nightly-materialise-timetable-events at crontab(hour=0, minute=5)"
+      ]
     },
     {
       "id": "06",

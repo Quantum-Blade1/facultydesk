@@ -169,5 +169,38 @@ flowchart LR
     Slots --> EventBus["Domain Event: TimetableConfirmed"]
 ```
 
+- **Stage 05: Calendar core, recurrence, clash detection, and ICS feed**
+  - What we built:
+    - Reversible migration adding `recurrence_date` and unique constraint `uq_events_source_recurrence` to `events`, and unique `ics_token` to `faculty_profiles`.
+    - Rolling 21-day class recurrence expansion engine using `python-dateutil` rrule with Asia/Kolkata wall-clock time and holiday skipping.
+    - Sweep-line clash detector ($O(n \log n)$) evaluating half-open intervals $\max(s_1, s_2) < \min(e_1, e_2)$ across multiple attendees, with explicit override.
+    - Multi-attendee common free-slot finder detecting available gaps within defined work hours.
+    - RFC 5545 compliant iCalendar feed (`/api/calendar/ics/{feed_token}.ics`) with secure token generation, rotation, and stable UIDs (`slot-<slot_id>-<date>@facultydesk.local`).
+    - Celery Beat nightly recurrence materialisation task advancing the 21-day rolling window automatically.
+  - Why this way:
+    - Rolling 21-day materialisation ensures calendar queries, clash detection, and reminder evaluation operate as indexed point/range queries against physical rows rather than expensive on-the-fly rrule calculations across entire academic terms.
+    - Idempotency via `(source, source_id, recurrence_date)` ensures repeated nightly runs or timetable updates never duplicate class occurrences.
+    - Half-open interval definition $[s, e)$ correctly models back-to-back classes (e.g. 10:00-11:00 and 11:00-12:00 do not clash).
+  - What we rejected and why:
+    - Pure on-the-fly recurrence evaluation at query time: rejected because it prevents indexed DB queries for clash detection, reminder queries, and complex multi-attendee schedules.
+    - Full-term materialisation up front: rejected because changes to the timetable or gazetted holidays across a 6-month term would require cascading updates across thousands of future rows.
+    - Public feed authentication via session cookies or Bearer headers: rejected because external calendar clients (Google Calendar, Apple Calendar, Outlook) do not support HTTP authorization headers for webcal subscriptions; token-gated URLs with rotation provide the standard secure mechanism.
+  - Risks and how they are contained:
+    - Token leakage: contained by instantaneous single-click token rotation that invalidates previous subscriptions immediately.
+    - Stale materialisations: contained by nightly Celery Beat task execution and re-materialisation hook on timetable confirmation.
+
+```mermaid
+flowchart TD
+    Slots["TimetableSlots"] --> Recurrence["Recurrence Engine: rrule(WEEKLY)"]
+    Holidays["Academic Holidays"] --> Exclude["Holiday Exclusion Filter"]
+    Recurrence --> Exclude
+    Exclude --> Window["Rolling 21-Day Materialiser"]
+    Window --> Events[("PostgreSQL: events table")]
+    Events --> SweepLine["Sweep-Line Clash Detector"]
+    Events --> FreeSlots["Free Slot Finder"]
+    Events --> ICS["RFC 5545 ICS Feed Engine"]
+    ICS --> WebCal["External Calendar Clients"]
+```
+
 
 

@@ -1,6 +1,7 @@
 from datetime import time
 from uuid import UUID, uuid4
 
+from app.application.calendar.use_cases import MaterialiseTimetableEventsUseCase
 from app.application.security.policy import AuthorisationPolicy, Principal
 from app.core.clock import Clock
 from app.domain import (
@@ -113,6 +114,9 @@ class ConfirmTimetableUseCase:
             await self._uow.timetable_slots.delete_by_upload_id(upload.id)
             await self._uow.timetable_slots.save_all(domain_slots)
             await self._uow.timetable_uploads.save(upload)
+
+            materialiser = MaterialiseTimetableEventsUseCase(self._uow, self._clock)
+            await materialiser.execute(upload.id)
 
             now_utc = self._clock.now()
             audit = AuditLog(

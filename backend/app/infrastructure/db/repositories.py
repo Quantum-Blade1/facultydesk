@@ -98,6 +98,7 @@ def faculty_profile_to_domain(m: FacultyProfileModel) -> FacultyProfile:
         aliases=tuple(m.aliases),
         email=m.email,
         phone=m.phone,
+        ics_token=m.ics_token,
     )
 
 
@@ -139,8 +140,10 @@ def event_to_domain(m: EventModel) -> Event:
         location=m.location,
         source=EventSource(m.source),
         source_id=m.source_id,
+        recurrence_date=m.recurrence_date,
         attendees=attendees,
     )
+
 
 
 def circular_to_domain(m: CircularModel) -> Circular:
@@ -373,6 +376,12 @@ class FacultyProfileRepositoryImpl(FacultyProfileRepository):
         result = await self._session.execute(stmt)
         return [faculty_profile_to_domain(m) for m in result.scalars().all()]
 
+    async def get_by_ics_token(self, token: str) -> FacultyProfile | None:
+        stmt = select(FacultyProfileModel).where(FacultyProfileModel.ics_token == token)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return faculty_profile_to_domain(model) if model else None
+
     async def save(self, profile: FacultyProfile) -> FacultyProfile:
         model = await self._session.get(FacultyProfileModel, profile.id)
         if model is None:
@@ -385,6 +394,7 @@ class FacultyProfileRepositoryImpl(FacultyProfileRepository):
                 aliases=list(profile.aliases),
                 email=profile.email,
                 phone=profile.phone,
+                ics_token=profile.ics_token,
             )
             self._session.add(model)
         else:
@@ -394,8 +404,10 @@ class FacultyProfileRepositoryImpl(FacultyProfileRepository):
             model.aliases = list(profile.aliases)
             model.email = profile.email
             model.phone = profile.phone
+            model.ics_token = profile.ics_token
         await self._session.flush()
         return faculty_profile_to_domain(model)
+
 
 
 class AcademicTermRepositoryImpl(AcademicTermRepository):
@@ -516,6 +528,7 @@ class EventRepositoryImpl(EventRepository):
                 location=event.location,
                 source=event.source.value,
                 source_id=event.source_id,
+                recurrence_date=event.recurrence_date,
             )
             self._session.add(model)
             for domain_att in event.attendees:
@@ -534,6 +547,7 @@ class EventRepositoryImpl(EventRepository):
             model.location = event.location
             model.source = event.source.value
             model.source_id = event.source_id
+            model.recurrence_date = event.recurrence_date
 
             existing_att = {att.faculty_id: att for att in model.attendees}
             target_faculty_ids = {att.faculty_id for att in event.attendees}
@@ -563,6 +577,32 @@ class EventRepositoryImpl(EventRepository):
         stmt = sa_delete(EventModel).where(EventModel.id == event_id)
         await self._session.execute(stmt)
         await self._session.flush()
+
+    async def get_by_slot_and_date(
+        self, slot_id: UUID, recurrence_date: date
+    ) -> Event | None:
+        stmt = (
+            select(EventModel)
+            .options(selectinload(EventModel.attendees))
+            .where(
+                EventModel.source_id == slot_id,
+                EventModel.recurrence_date == recurrence_date,
+            )
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return event_to_domain(model) if model else None
+
+    async def delete_future_by_slot(
+        self, slot_id: UUID, from_date: date
+    ) -> None:
+        stmt = sa_delete(EventModel).where(
+            EventModel.source_id == slot_id,
+            EventModel.recurrence_date >= from_date,
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
+
 
 
 class CircularRepositoryImpl(CircularRepository):
@@ -840,6 +880,12 @@ class SectionRepositoryImpl(SectionRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def get_by_id(self, section_id: UUID) -> Section | None:
+        stmt = select(SectionModel).where(SectionModel.id == section_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return section_to_domain(model) if model else None
+
     async def get_by_course_and_name(self, course_id: UUID, name: str) -> Section | None:
         stmt = select(SectionModel).where(
             SectionModel.course_id == course_id,
@@ -868,11 +914,18 @@ class RoomRepositoryImpl(RoomRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def get_by_id(self, room_id: UUID) -> Room | None:
+        stmt = select(RoomModel).where(RoomModel.id == room_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return room_to_domain(model) if model else None
+
     async def get_by_code(self, code: str) -> Room | None:
         stmt = select(RoomModel).where(RoomModel.code == code)
         result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
         return room_to_domain(model) if model else None
+
 
     async def save(self, room: Room) -> Room:
         model = await self._session.get(RoomModel, room.id)
@@ -901,7 +954,17 @@ class TimetableUploadRepositoryImpl(TimetableUploadRepository):
         model = result.scalar_one_or_none()
         return timetable_upload_to_domain(model) if model else None
 
+    async def list_by_term_id(self, term_id: UUID) -> list[TimetableUpload]:
+        stmt = (
+            select(TimetableUploadModel)
+            .where(TimetableUploadModel.academic_term_id == term_id)
+            .order_by(TimetableUploadModel.uploaded_at_utc.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [timetable_upload_to_domain(m) for m in result.scalars().all()]
+
     async def save(self, upload: TimetableUpload) -> TimetableUpload:
+
         model = await self._session.get(TimetableUploadModel, upload.id)
         if model is None:
             model = TimetableUploadModel(

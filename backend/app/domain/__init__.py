@@ -20,6 +20,7 @@ from app.domain.entities import (
     User,
 )
 from app.domain.errors import (
+    ClashDetectedError,
     ConflictError,
     DomainError,
     EntityNotFound,
@@ -77,6 +78,7 @@ __all__ = [
     "Circular",
     "CircularRepository",
     "CircularStatus",
+    "ClashDetectedError",
     "ConflictError",
     "Course",
     "CourseRepository",
