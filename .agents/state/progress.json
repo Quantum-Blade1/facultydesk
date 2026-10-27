@@ -185,7 +185,7 @@
       "status": "done",
       "started_at": "2026-10-27T20:06:00+05:30",
       "finished_at": "2026-10-27T20:39:00+05:30",
-      "commit": "pending",
+      "commit": "ce2af82",
       "tasks": [
         "specify length-weighted confidence, deskew angle, duplicate predicate, and meeting time grammar in docs/MATHS.md",
         "create synthetic sample circulars corpus (6 files: clean PDF, scanned PDF, skewed photo, low-light photo, table initials, all faculty)",
