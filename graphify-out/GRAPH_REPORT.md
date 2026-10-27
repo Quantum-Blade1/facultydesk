@@ -1,14 +1,19 @@
 # Graph Report - facultydesk  (2026-10-27)
 
 ## Corpus Check
-- 106 files · ~48,902 words
+- 117 files · ~57,770 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 17 file(s) not represented in the graph (top: (none) 10, .example 1, .ini 1)
 
 ## Summary
-- 804 nodes · 881 edges · 94 communities (65 shown, 29 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 40 edges (avg confidence: 0.92)
+- 1111 nodes · 1886 edges · 98 communities (71 shown, 27 thin omitted)
+- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 211 edges (avg confidence: 0.94)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `2c3c19e3`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - server.cjs
@@ -29,10 +34,9 @@
 - Defense-in-Depth Validation
 - Writing Plans
 - config.py
-- FacultyDesk Maths
+- ScheduledNotification
 - devDependencies
 - Brainstorming
-- FacultyDesk Agent Contract
 - Verification Before Completion
 - with_server.py
 - env.py
@@ -40,7 +44,7 @@
 - helper.js
 - layout.tsx
 - Web Application Testing
-- db.py
+- db/repositories.py
 - logging.py
 - page.tsx
 - Stage 04: Timetable upload, parsing and initials resolution
@@ -52,7 +56,7 @@
 - Stage 03: Authentication, roles and faculty directory
 - Stage 05: Calendar core, recurrence, clash detection, ICS feed
 - Stage 06: Reminder engine with exactly-once delivery
-- Stage 07: Meeting circular scanning, extraction and review queue
+- Circular
 - Stage 08: Documentation tasks, priority scoring and alerts
 - Code Quality Bar
 - Documentation Rule
@@ -82,55 +86,61 @@
 - frontend/README.md
 - Kickoff prompt (paste this into the Antigravity agent)
 - start-server.sh
-- domain_exception_handler
+- AcademicTerm
 - builder-check-prompt.md
 - ooad-diagrams/SKILL.md
 - stage-verify/SKILL.md
 - find-polluter.sh
 - test-academic.md
 - frontend/AGENTS.md
+- domain/__init__.py
 - facultydesk-backend
+- ScheduledNotification
+- Department
+- Stage 02: Domain model and persistence (OOAD core)
+- sqlalchemy
+- Architect
 
 ## God Nodes (most connected - your core abstractions)
-1. `compilerOptions` - 17 edges
-2. `handleRequest()` - 14 edges
-3. `Clock` - 13 edges
-4. `FrozenClock` - 13 edges
-5. `Test-Driven Development (TDD)` - 13 edges
-6. `Visual Companion Guide` - 12 edges
-7. `startServer()` - 11 edges
-8. `FacultyDeskError` - 11 edges
-9. `Systematic Debugging` - 11 edges
-10. `Writing Plans` - 11 edges
+1. `InvariantViolation` - 44 edges
+2. `ScheduledNotification` - 33 edges
+3. `Event` - 31 edges
+4. `Circular` - 29 edges
+5. `Domain (backend/app/domain)` - 29 edges
+6. `Task` - 26 edges
+7. `Stage 02: Domain model and persistence (OOAD core)` - 25 edges
+8. `FacultyProfile` - 24 edges
+9. `2. Features that exist now` - 24 edges
+10. `Base` - 23 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Non-negotiables` --references--> `Clock`  [INFERRED]
-  AGENTS.md → backend/app/core/clock.py
+- `Persistence` --references--> `UnitOfWork`  [INFERRED]
+  prompts/02-domain-model.md → backend/app/domain/repositories.py
 - `Standards you are held to` --references--> `Clock`  [INFERRED]
   .agents/agents/backend-engineer.md → backend/app/core/clock.py
-- `Design checks` --references--> `InvalidTransition`  [INFERRED]
-  .agents/agents/architect.md → backend/app/core/errors.py
-- `Domain (backend/app/domain)` --references--> `InvalidTransition`  [INFERRED]
-  prompts/02-domain-model.md → backend/app/core/errors.py
-- `Stage 01: Foundation, environment, Graphify, trusted skills` --references--> `Clock`  [INFERRED]
-  docs/DECISIONS.md → backend/app/core/clock.py
+- `Non-negotiables` --references--> `Clock`  [INFERRED]
+  AGENTS.md → backend/app/core/clock.py
+- `2. Features that exist now` --references--> `Clock`  [INFERRED]
+  docs/PROJECT.md → backend/app/core/clock.py
+- `2. Features that exist now` --references--> `SystemClock`  [INFERRED]
+  docs/PROJECT.md → backend/app/core/clock.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (94 total, 29 thin omitted)
+## Communities (98 total, 27 thin omitted)
 
 ### Community 0 - "server.cjs"
 Cohesion: 0.05
 Nodes (57): bootstrapPage(), brandMarkup(), broadcast(), browserLauncherForPlatform(), chmodOwnerOnly(), clients, companionUrl(), computeAcceptKey() (+49 more)
 
 ### Community 1 - "security.py"
-Cohesion: 0.07
-Nodes (21): Backend Engineer, Responsibilities, Standards you are held to, Working method, Clock, FrozenClock, SystemClock, create_access_token() (+13 more)
+Cohesion: 0.06
+Nodes (29): Backend Engineer, Responsibilities, Standards you are held to, Working method, Architecture law, Communication style, Definition of done for every stage, FacultyDesk Agent Contract (+21 more)
 
 ### Community 2 - "FacultyDeskError"
-Cohesion: 0.10
-Nodes (19): Architect, Design checks, Output for every design task, Responsibilities, ConflictError, FacultyDeskError, ForbiddenError, InvalidTransition (+11 more)
+Cohesion: 0.25
+Nodes (7): ConflictError, FacultyDeskError, ForbiddenError, InvalidTransition, NotFoundError, UnauthorizedError, ValidationError
 
 ### Community 3 - "Test-Driven Development (TDD)"
 Cohesion: 0.06
@@ -157,8 +167,8 @@ Cohesion: 0.10
 Nodes (19): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+11 more)
 
 ### Community 9 - "app/main.py"
-Cohesion: 0.18
-Nodes (3): healthz(), lifespan(), readyz()
+Cohesion: 0.14
+Nodes (4): domain_exception_handler(), healthz(), lifespan(), readyz()
 
 ### Community 10 - "Root Cause Tracing"
 Cohesion: 0.12
@@ -188,9 +198,9 @@ Nodes (11): Applying the Pattern, Defense-in-Depth Validation, Example from Sess
 Cohesion: 0.17
 Nodes (11): Execution Handoff, File Structure, Overview, Plan Document Header, Scope Check, Self-Review, Step Granularity, Task Right-Sizing (+3 more)
 
-### Community 18 - "FacultyDesk Maths"
-Cohesion: 0.17
-Nodes (11): 10. Security Limits, 1. Time and Recurrence, 2. Clash Detection, 3. Reminder Scheduling, 4. Exactly-Once Delivery, 5. Initials and Name Matching, 6. OCR Confidence, 7. Date and Time Extraction (+3 more)
+### Community 18 - "ScheduledNotification"
+Cohesion: 0.09
+Nodes (25): QuietHours, test_circular_state_machine_exhaustive(), test_event_invariants(), test_initials_invalid_property(), test_initials_valid_property(), test_notification_state_machine_exhaustive(), test_quiet_hours_midnight_crossing(), test_task_invariants() (+17 more)
 
 ### Community 19 - "devDependencies"
 Cohesion: 0.17
@@ -200,16 +210,12 @@ Nodes (12): devDependencies, eslint, eslint-config-next, openapi-typescript, pre
 Cohesion: 0.18
 Nodes (10): Brainstorming, First: What Do You Actually Know?, Look Before You Ask, Play It Back, Red Flags, Size the Work, The Conversation, The Written Design (+2 more)
 
-### Community 21 - "FacultyDesk Agent Contract"
-Cohesion: 0.20
-Nodes (9): Architecture law, Communication style, Definition of done for every stage, FacultyDesk Agent Contract, Fixed tech stack (do not substitute), How work is organised, Non-negotiables, Product in one paragraph (+1 more)
-
 ### Community 22 - "Verification Before Completion"
 Cohesion: 0.20
 Nodes (9): Common Failures, Key Patterns, Overview, Rationalization Prevention, Red Flags - STOP, The Gate Function, The Iron Law, Verification Before Completion (+1 more)
 
 ### Community 24 - "env.py"
-Cohesion: 0.27
+Cohesion: 0.29
 Nodes (5): do_run_migrations(), run_async_migrations(), run_migrations_offline(), run_migrations_online(), get_settings()
 
 ### Community 25 - "scripts"
@@ -228,13 +234,17 @@ Nodes (5): nextConfig, geistMono, geistSans, metadata, next
 Cohesion: 0.25
 Nodes (7): Best Practices, Common Pitfall, Decision Tree: Choosing Your Approach, Example: Using with_server.py, Reconnaissance-Then-Action Pattern, Reference Files, Web Application Testing
 
+### Community 29 - "db/repositories.py"
+Cohesion: 0.09
+Nodes (29): Base, get_db(), AuditLog, User, AuditLogRepository, UserRepository, AcademicTermModel, AuditLogModel (+21 more)
+
 ### Community 31 - "page.tsx"
 Cohesion: 0.39
 Nodes (5): fetchInitialReadiness(), Home(), ReadinessData, ReadinessView(), react
 
 ### Community 32 - "Stage 04: Timetable upload, parsing and initials resolution"
-Cohesion: 0.25
-Nodes (7): Acceptance criteria, Goal, Input formats to support, Maths to specify first, Pipeline, Stage 04: Timetable upload, parsing and initials resolution, Tests
+Cohesion: 0.29
+Nodes (6): Acceptance criteria, Goal, Input formats to support, Maths to specify first, Stage 04: Timetable upload, parsing and initials resolution, Tests
 
 ### Community 33 - "Graphify Protocol"
 Cohesion: 0.29
@@ -253,24 +263,24 @@ Cohesion: 0.29
 Nodes (6): Design principles, Frontend Design, Ground your designs in the subject matter, More on writing in design, Process: plan, review against the brief, build, critique, Restraint and self-critique
 
 ### Community 37 - "FacultyDesk"
-Cohesion: 0.20
-Nodes (9): 1. Problem and users, 3. Architecture, 4.1 Component Diagram, 4. OOAD diagrams, 5. How to run, test and deploy, Development commands, FacultyDesk, Prerequisites (+1 more)
+Cohesion: 0.14
+Nodes (13): 1. Problem and users, 3. Architecture, 4.1 Component Diagram, 4.2 Domain Class Diagram, 4.3 Circular State Machine, 4.4 ScheduledNotification State Machine, 4.5 Entity-Relationship (ER) Diagram, 4. OOAD diagrams (+5 more)
 
 ### Community 38 - "Stage 03: Authentication, roles and faculty directory"
 Cohesion: 0.29
 Nodes (6): Acceptance criteria, Goal, Maths to specify first, Stage 03: Authentication, roles and faculty directory, Tasks, Tests
 
 ### Community 39 - "Stage 05: Calendar core, recurrence, clash detection, ICS feed"
-Cohesion: 0.29
-Nodes (6): Acceptance criteria, Goal, Maths to specify first, Stage 05: Calendar core, recurrence, clash detection, ICS feed, Tasks, Tests
+Cohesion: 0.33
+Nodes (5): Acceptance criteria, Goal, Maths to specify first, Stage 05: Calendar core, recurrence, clash detection, ICS feed, Tests
 
 ### Community 40 - "Stage 06: Reminder engine with exactly-once delivery"
-Cohesion: 0.29
-Nodes (6): Acceptance criteria, Design (implement exactly), Goal, Maths to specify first, Stage 06: Reminder engine with exactly-once delivery, Tests
+Cohesion: 0.33
+Nodes (5): Acceptance criteria, Goal, Maths to specify first, Stage 06: Reminder engine with exactly-once delivery, Tests
 
-### Community 41 - "Stage 07: Meeting circular scanning, extraction and review queue"
-Cohesion: 0.29
-Nodes (6): Acceptance criteria, Corpus and tests, Goal, Maths to specify first, Pipeline, Stage 07: Meeting circular scanning, extraction and review queue
+### Community 41 - "Circular"
+Cohesion: 0.06
+Nodes (20): Circular, FacultyProfile, Task, CircularRepository, FacultyProfileRepository, TaskRepository, Initials, circular_to_domain() (+12 more)
 
 ### Community 42 - "Stage 08: Documentation tasks, priority scoring and alerts"
 Cohesion: 0.29
@@ -380,25 +390,49 @@ Nodes (3): Deploy on Vercel, Getting Started, Learn More
 Cohesion: 0.50
 Nodes (3): Kickoff prompt (paste this into the Antigravity agent), Resuming in a new conversation, Running a single stage manually
 
+### Community 72 - "AcademicTerm"
+Cohesion: 0.14
+Nodes (6): AcademicTerm, Holiday, AcademicTermRepository, academic_term_to_domain(), AcademicTermRepositoryImpl, holiday_to_domain()
+
+### Community 85 - "domain/__init__.py"
+Cohesion: 0.06
+Nodes (40): Course, Event, EventAttendee, PushSubscription, ReminderRule, Room, Section, TimetableSlot (+32 more)
+
+### Community 96 - "ScheduledNotification"
+Cohesion: 0.11
+Nodes (5): ScheduledNotification, NotificationRepository, notification_to_domain(), NotificationRepositoryImpl, SqlAlchemyUnitOfWork
+
+### Community 97 - "Department"
+Cohesion: 0.11
+Nodes (4): Department, DepartmentRepository, department_to_domain(), DepartmentRepositoryImpl
+
+### Community 102 - "Stage 02: Domain model and persistence (OOAD core)"
+Cohesion: 0.25
+Nodes (7): Acceptance criteria, Diagrams, Goal, Maths to specify first (MATHS.md), Persistence, Stage 02: Domain model and persistence (OOAD core), Tests
+
+### Community 106 - "Architect"
+Cohesion: 0.40
+Nodes (4): Architect, Design checks, Output for every design task, Responsibilities
+
 ## Knowledge Gaps
 - **23 isolated node(s):** `RFC-6455`, `facultydesk-backend`, `@fullcalendar/core`, `@fullcalendar/daygrid`, `@fullcalendar/react` (+18 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 556 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **29 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 601 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **27 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Clock` connect `security.py` to `FacultyDesk Agent Contract`?**
-  _High betweenness centrality (0.017) - this node is a cross-community bridge._
-- **Are the 8 inferred relationships involving `Clock` (e.g. with `Standards you are held to` and `Non-negotiables`) actually correct?**
-  _`Clock` has 8 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `2. Features that exist now` connect `domain/__init__.py` to `ScheduledNotification`, `security.py`, `Department`, `FacultyDesk`, `AcademicTerm`, `Circular`, `db/repositories.py`?**
+  _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Are the 19 inferred relationships involving `InvariantViolation` (e.g. with `AcademicTerm` and `AuditLog`) actually correct?**
+  _`InvariantViolation` has 19 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `RFC-6455`, `facultydesk-backend`, `@fullcalendar/core` to the rest of the system?**
   _23 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `server.cjs` be split into smaller, more focused modules?**
   _Cohesion score 0.05034965034965035 - nodes in this community are weakly interconnected._
-- **Why does `get_settings()` connect `env.py` to `config.py`, `db.py`, `security.py`, `app/main.py`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
-- **Are the 6 inferred relationships involving `FrozenClock` (e.g. with `test_clock_always_returns_utc_property()` and `test_frozen_clock_advance_property()`) actually correct?**
-  _`FrozenClock` has 6 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Clock` connect `security.py` to `domain/__init__.py`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Are the 10 inferred relationships involving `ScheduledNotification` (e.g. with `InvalidTransition` and `InvariantViolation`) actually correct?**
+  _`ScheduledNotification` has 10 INFERRED edges - model-reasoned connections that need verification._
 - **Should `security.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.07358156028368794 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05656565656565657 - nodes in this community are weakly interconnected._

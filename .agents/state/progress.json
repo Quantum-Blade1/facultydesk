@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "02",
+  "current_stage": "03",
   "stages": [
     {
       "id": "01",
@@ -31,12 +31,28 @@
     {
       "id": "02",
       "file": "02-domain-model.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T07:55:00+05:30",
+      "finished_at": "2026-10-27T08:08:00+05:30",
+      "commit": "f98eb6b4029543267f28e8f682594dc4bfdfd8c6",
+      "tasks": [
+        "spec math invariants in docs/MATHS.md",
+        "implement domain entities, value objects, domain events, errors",
+        "define repository interfaces and UnitOfWork",
+        "implement SQLAlchemy models and repository adapters",
+        "create initial Alembic migration with check constraints and indices",
+        "test reversible migration up-down-up",
+        "write unit and property tests with hypothesis",
+        "write integration tests against real postgres",
+        "update docs/PROJECT.md, MATHS.md, DECISIONS.md with mermaid diagrams"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 29 source files; 14 passed in 0.45s",
+        "alembic upgrade head && downgrade base && upgrade head -> Clean reversible migration run (revision 8f3198838ebd)",
+        "pytest test_domain_invariants.py -> 10 passed; exhaustive Cartesian product tests for CircularStatus (36 pairs) and NotificationStatus (25 pairs)",
+        "pytest test_repositories.py -> 1 passed; round-tripped Department, User, FacultyProfile, AcademicTerm, Holiday, Event, Circular, ScheduledNotification, Task, AuditLog through SqlAlchemyUnitOfWork against PostgreSQL",
+        "Zero imports from infrastructure or external frameworks in backend/app/domain"
+      ]
     },
     {
       "id": "03",

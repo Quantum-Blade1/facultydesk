@@ -56,3 +56,50 @@ flowchart LR
     FE --> BE
 ```
 
+## Stage 02: Domain model and persistence (OOAD core)
+
+- What we built:
+  - Framework-free domain entities and value objects in `backend/app/domain/` with zero I/O imports (`Department`, `User`, `FacultyProfile`, `Initials`, `AcademicTerm`, `Holiday`, `Room`, `Course`, `Section`, `TimetableUpload`, `TimetableSlot`, `Event`, `EventAttendee`, `Circular`, `ScheduledNotification`, `ReminderRule`, `PushSubscription`, `Task`, `AuditLog`).
+  - Finite state machine transition tables and algebraic checks for `Circular` and `ScheduledNotification`, enforcing legal paths and raising typed `InvalidTransition` exceptions.
+  - Abstract repository interfaces (`DepartmentRepository`, `UserRepository`, etc.) and asynchronous `UnitOfWork` interface.
+  - PostgreSQL schema with async SQLAlchemy 2 models, check constraints (`end_utc > start_utc`, `1 <= importance <= 5`), indices, and reversible Alembic migration `8f3198838ebd_initial_schema.py`.
+  - SQLAlchemy repository adapters and `SqlAlchemyUnitOfWork`.
+  - Property-based tests via Hypothesis for `Initials` ASCII grammar and exhaustive Cartesian state transition matrices.
+  - Integration tests verifying aggregate persistence and round-trips against PostgreSQL in Docker.
+- Why this way:
+  - Clean Architecture layer isolation ensures business rules can be verified purely in memory with zero database or framework overhead.
+  - Invariants in entity constructors and value objects guarantee illegal states cannot exist in domain memory.
+  - Explicit transition tables prevent invalid status bypasses across background tasks and user flows.
+- What we rejected:
+  - Framework coupling in `app/domain` (SQLAlchemy declarative models remain strictly in `app/infrastructure/db/models.py`).
+  - Loose string representations for `Initials` and `TimeSlot` (encapsulated as immutable, validated value objects).
+  - Implicit database rollbacks (managed explicitly via `UnitOfWork` context manager).
+- Risks and how they are contained:
+  - Lazy loading `MissingGreenlet` errors in async SQLAlchemy: contained by declaring eager `selectinload` options and explicit relation management in repository adapters.
+  - Concurrency idempotency collisions: contained via unique `idempotency_key` and composite uniqueness constraints on the database level.
+
+```mermaid
+flowchart LR
+    subgraph DomainLayer["Domain Layer (Zero I/O Deps)"]
+        Entities["Entities & Value Objects"]
+        Events["Domain Events"]
+        RepoABCs["Repository & UnitOfWork ABCs"]
+    end
+
+    subgraph InfraLayer["Infrastructure Layer"]
+        RepoImpls["SQLAlchemy Repositories"]
+        SQLModels["SQLAlchemy Models"]
+        SQLUoW["SqlAlchemyUnitOfWork"]
+    end
+
+    subgraph Database["PostgreSQL 16"]
+        Tables[("Tables & Check Constraints")]
+    end
+
+    RepoImpls -.implements.-> RepoABCs
+    SQLUoW -.implements.-> RepoABCs
+    RepoImpls --> SQLModels
+    SQLModels --> Tables
+```
+
+

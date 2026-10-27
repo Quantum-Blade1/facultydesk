@@ -18,6 +18,10 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Structured JSON logging (`structlog`) with distributed request ID tracking (`X-Request-ID`).
 - Health probes: `/healthz` (liveness) and `/readyz` (dependency readiness probing PostgreSQL `SELECT 1`, Redis `PING`, and MinIO bucket verification).
 - Interactive Frontend dashboard displaying real-time system readiness probe status.
+- Framework-free domain layer (`Department`, `User`, `FacultyProfile`, `Initials`, `AcademicTerm`, `Holiday`, `Room`, `Course`, `Section`, `TimetableUpload`, `TimetableSlot`, `Event`, `EventAttendee`, `Circular`, `ScheduledNotification`, `ReminderRule`, `PushSubscription`, `Task`, `AuditLog`).
+- Deterministic finite state machines for `Circular` (7 transitions) and `ScheduledNotification` (5 transitions) raising typed `InvalidTransition` on illegal transitions.
+- Fully reversible Alembic migration (`8f3198838ebd_initial_schema.py`) supporting database schema creation and rollback.
+- Async SQLAlchemy repository implementations and `SqlAlchemyUnitOfWork`.
 - Docker Compose development and production environments with health checks on all services.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
@@ -82,6 +86,227 @@ flowchart TD
     FastAPI --> CoreDomain
     CeleryWorker --> RedisClient
     CeleryBeat --> RedisClient
+```
+
+### 4.2 Domain Class Diagram
+
+```mermaid
+classDiagram
+    class Department {
+        +UUID id
+        +str code
+        +str name
+    }
+
+    class User {
+        +UUID id
+        +str email
+        +str password_hash
+        +Role role
+        +bool is_active
+    }
+
+    class FacultyProfile {
+        +UUID id
+        +UUID user_id
+        +UUID department_id
+        +str full_name
+        +Initials initials
+        +tuple~str~ aliases
+        +str email
+        +str phone
+    }
+
+    class AcademicTerm {
+        +UUID id
+        +str name
+        +date start_date
+        +date end_date
+        +str timezone
+    }
+
+    class Holiday {
+        +UUID id
+        +UUID academic_term_id
+        +date date
+        +str label
+    }
+
+    class Event {
+        +UUID id
+        +EventKind kind
+        +str title
+        +datetime start_utc
+        +datetime end_utc
+        +str location
+        +EventSource source
+        +UUID source_id
+        +reschedule(new_start, new_end)
+        +cancel(reason)
+        +add_attendee(faculty_id, response)
+    }
+
+    class EventAttendee {
+        +UUID id
+        +UUID event_id
+        +UUID faculty_id
+        +AttendeeResponse response
+    }
+
+    class Circular {
+        +UUID id
+        +str file_key
+        +str ocr_text
+        +dict extracted_fields
+        +float confidence
+        +CircularStatus status
+        +start_processing()
+        +mark_needs_review(fields, conf)
+        +confirm(fields)
+        +reject(reason)
+        +fail(reason)
+    }
+
+    class ScheduledNotification {
+        +UUID id
+        +UUID target_id
+        +str target_kind
+        +UUID user_id
+        +NotificationChannel channel
+        +datetime fire_at_utc
+        +str idempotency_key
+        +int attempts
+        +int max_attempts
+        +NotificationStatus status
+        +mark_sending()
+        +mark_sent()
+        +mark_failed(error)
+        +retry()
+        +cancel()
+    }
+
+    class Task {
+        +UUID id
+        +str title
+        +str description
+        +datetime deadline_utc
+        +int importance
+        +TaskStatus status
+        +UUID assignee_id
+        +UUID assigner_id
+        +update_deadline(new_deadline)
+        +change_status(new_status)
+    }
+
+    Department "1" --> "*" FacultyProfile
+    User "1" <--> "1" FacultyProfile
+    AcademicTerm "1" --> "*" Holiday
+    Event "1" *-- "*" EventAttendee
+    FacultyProfile "1" --> "*" EventAttendee
+```
+
+### 4.3 Circular State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> UPLOADED
+    UPLOADED --> PROCESSING : start_processing()
+    PROCESSING --> NEEDS_REVIEW : mark_needs_review()
+    PROCESSING --> CONFIRMED : confirm()
+    PROCESSING --> FAILED : fail()
+    NEEDS_REVIEW --> CONFIRMED : confirm()
+    NEEDS_REVIEW --> REJECTED : reject()
+    FAILED --> PROCESSING : retry
+    CONFIRMED --> [*]
+    REJECTED --> [*]
+```
+
+### 4.4 ScheduledNotification State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> SENDING : mark_sending()
+    SENDING --> SENT : mark_sent()
+    SENDING --> FAILED : mark_failed()
+    FAILED --> PENDING : retry (attempts < max)
+    PENDING --> CANCELLED : cancel()
+    SENT --> [*]
+    CANCELLED --> [*]
+```
+
+### 4.5 Entity-Relationship (ER) Diagram
+
+```mermaid
+erDiagram
+    departments ||--o{ faculty_profiles : employs
+    departments ||--o{ courses : offers
+    users ||--|| faculty_profiles : identifies
+    users ||--o{ tasks : assigned
+    users ||--o{ scheduled_notifications : receives
+    academic_terms ||--o{ holidays : includes
+    courses ||--o{ sections : has
+    events ||--o{ event_attendees : invites
+    faculty_profiles ||--o{ event_attendees : attends
+    timetable_uploads ||--o{ timetable_slots : contains
+
+    departments {
+        uuid id PK
+        varchar code UK
+        varchar name
+        timestamptz created_at_utc
+    }
+
+    users {
+        uuid id PK
+        varchar email UK
+        text password_hash
+        varchar role
+        bool is_active
+        timestamptz created_at_utc
+    }
+
+    faculty_profiles {
+        uuid id PK
+        uuid user_id FK
+        uuid department_id FK
+        varchar full_name
+        varchar initials
+        jsonb aliases
+        varchar email
+    }
+
+    events {
+        uuid id PK
+        varchar kind
+        varchar title
+        timestamptz start_utc
+        timestamptz end_utc
+        varchar location
+        varchar source
+    }
+
+    scheduled_notifications {
+        uuid id PK
+        uuid target_id
+        uuid user_id FK
+        varchar channel
+        timestamptz fire_at_utc
+        varchar idempotency_key UK
+        int attempts
+        varchar status
+    }
+
+    tasks {
+        uuid id PK
+        varchar title
+        text description
+        timestamptz deadline_utc
+        int importance
+        varchar status
+        uuid assignee_id FK
+        uuid assigner_id FK
+    }
 ```
 
 ## 5. How to run, test and deploy

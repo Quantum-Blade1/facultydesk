@@ -27,7 +27,7 @@ async_session_factory = async_sessionmaker(
 
 
 class Base(DeclarativeBase):
-    pass
+    """SQLAlchemy declarative base."""
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
