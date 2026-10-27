@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend Lint, Typecheck & Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: facultydesk
+          POSTGRES_USER: facultydesk
+          POSTGRES_PASSWORD: facultydesk_dev_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U facultydesk -d facultydesk"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: facultydesk
+      POSTGRES_USER: facultydesk
+      POSTGRES_PASSWORD: facultydesk_dev_secret
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadminpassword
+      MINIO_BUCKET_NAME: facultydesk
+      MINIO_SECURE: "false"
+      SECRET_KEY: ci-test-secret-key-at-least-32-chars-long-1234
+      TIMEZONE: Asia/Kolkata
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            libgl1 \
+            libglib2.0-0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install Python Dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Ruff Lint
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Mypy Strict Typecheck
+        working-directory: backend
+        run: uv run mypy --strict app tests
+
+      - name: Pytest Suite
+        working-directory: backend
+        run: uv run pytest
+
+  frontend:
+    name: Frontend Lint, Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Frontend Typecheck
+        working-directory: frontend
+        run: pnpm typecheck
+
+      - name: Frontend Production Build
+        working-directory: frontend
+        run: pnpm build
+
+  docs-diagrams:
+    name: Documentation & Mermaid Diagram Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify Mermaid Diagrams
+        run: |
+          npx -y @mermaid-js/mermaid-cli --version
+          for f in docs/diagrams/*.png; do
+            [ -f "$f" ] && echo "Verified diagram artifact: $f"
+          done

@@ -569,7 +569,7 @@ export default function TasksPage() {
                           if (assignees.length === facultyList.length) {
                             setAssignees([]);
                           } else {
-                            setAssignees(facultyList.map((f) => f.id));
+                            setAssignees(facultyList.map((f) => f.user_id || f.id));
                           }
                         }}
                         className="text-xs text-[#1e3a8a] font-semibold hover:underline"
@@ -579,16 +579,17 @@ export default function TasksPage() {
                     </div>
                     <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 border border-slate-200 rounded-md">
                       {facultyList.map((f) => {
-                        const selected = assignees.includes(f.id);
+                        const targetId = f.user_id || f.id;
+                        const selected = assignees.includes(targetId);
                         return (
                           <button
                             key={f.id}
                             type="button"
                             onClick={() => {
                               if (selected) {
-                                setAssignees(assignees.filter((id) => id !== f.id));
+                                setAssignees(assignees.filter((id) => id !== targetId));
                               } else {
-                                setAssignees([...assignees, f.id]);
+                                setAssignees([...assignees, targetId]);
                               }
                             }}
                             className={`px-2 py-1 rounded text-xs font-medium border cursor-pointer ${

@@ -14,6 +14,14 @@ celery_app = Celery(
     "facultydesk",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
+    include=[
+        "app.workers.calendar_tasks",
+        "app.workers.circular_tasks",
+        "app.workers.reminder_tasks",
+        "app.workers.task_alerts",
+        "app.workers.timetable_tasks",
+        "app.workers.backup_tasks",
+    ],
 )
 
 celery_app.conf.update(

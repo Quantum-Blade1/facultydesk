@@ -52,6 +52,7 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    LOGIN_RATE_LIMIT_PER_MINUTE: int = 120
 
 
 @lru_cache

@@ -82,7 +82,7 @@ class RejectCircularRequest(BaseModel):
 @router.post("/upload", response_model=CircularUploadResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_circular(
     file: UploadFile = File(...),
-    department_id: UUID = Form(...),
+    department_id: UUID | None = Form(None),
     auto_confirm: bool = Form(False),
     principal: Principal = Depends(get_current_principal),
     uow: UnitOfWork = Depends(get_uow),
@@ -91,10 +91,16 @@ async def upload_circular(
     """Upload a circular image or PDF for OCR parsing and human review."""
     content = await file.read()
     filename = file.filename or "circular.pdf"
+    target_dept_id = department_id or principal.department_id
+    if target_dept_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Department ID is required.",
+        )
     use_case = UploadCircularUseCase(uow, storage)
     circular = await use_case.execute(
         principal=principal,
-        department_id=department_id,
+        department_id=target_dept_id,
         file_bytes=content,
         filename=filename,
     )

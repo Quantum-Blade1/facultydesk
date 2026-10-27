@@ -3,7 +3,6 @@ from __future__ import annotations
 from uuid import UUID
 
 import jwt
-import redis.asyncio as aioredis
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 

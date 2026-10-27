@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-import redis.asyncio as aioredis
 import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel

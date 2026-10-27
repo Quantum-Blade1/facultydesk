@@ -497,4 +497,67 @@ flowchart TD
     BackupSvc --> Postgres
     BackupSvc --> MinIO
 ```
+- **Stage 11: Production deployment, CI and end-to-end smoke test**
+  - What we built:
+    - Production Docker Compose topology (`docker-compose.prod.yml`): multi-stage non-root container images for backend (`appuser:10001`) and frontend (`nextjs:10001`), standalone Next.js runner with internal API proxy, Caddy HTTPS with automatic TLS, MinIO bucket provisioner, healthchecks, and strict resource limits.
+    - College-LAN mode: documented architecture for running on private college intranets or departmental servers without public domains or external DNS using Caddy internal TLS (`tls internal`).
+    - GitHub Actions CI (`.github/workflows/ci.yml`): automated validation running backend lint (`ruff check`), typecheck (`mypy --strict`), and tests (`pytest`) against PostgreSQL 16 and Redis 7 service containers; frontend lint, typecheck, and standalone build; and mermaid CLI diagram rendering.
+    - Playwright end-to-end smoke suite (`frontend/e2e/`): 4 comprehensive journeys validating timetable ingestion & class generation, circular OCR queue & meeting confirmation, exactly-once notification delivery, and task cohort assignment & completion.
+    - Automated live demonstration readiness (`make demo`): 6-step script (`scripts/demo_setup.py`) running fresh seed, API health verification, demo users, sample timetable and circular ingestion, and system metrics reporting.
+  - Why this way:
+    - Multi-stage container builds prevent build dependencies, compilers, and source control metadata from leaking into production images.
+    - Standalone Next.js runner with internal API rewrites reduces network hop overhead and simplifies reverse-proxy configuration in Caddy.
+    - College-LAN mode allows realistic departmental deployment in higher education environments without exposing internal faculty calendars to the public internet.
+    - Single-worker Playwright smoke tests provide deterministic end-to-end regression testing with sub-15-second execution time.
+  - What we rejected and why:
+    - Running frontend and backend inside a single monolithic container: rejected because Celery workers, API routers, and SSR frontend have different scaling and memory profiles.
+    - Using mock API responses for Playwright smoke tests: rejected because end-to-end tests must exercise real PostgreSQL transactions, Redis queues, and Celery workers to prove integration correctness.
+  - Risks and how they are contained:
+    - Browser cookie and session races during automated test login: contained by clearing browser context cookies before navigating to the login page.
+    - Rate limit throttling during end-to-end test runs: contained by tuning login and token refresh rate limits to handle consecutive test logins across test journeys.
 
+```mermaid
+flowchart TD
+    subgraph Client["Client Tier"]
+        Browser["Faculty & Admin Browsers / Mobile PWA"]
+        E2E["Playwright E2E Smoke Suite<br/>4 Journeys: Timetable, Circular, Reminder, Task"]
+    end
+
+    subgraph Edge["Perimeter / Gateway Tier"]
+        Caddy["Caddy Reverse Proxy<br/>Auto HTTPS (Public ACME or College-LAN Internal CA)"]
+    end
+
+    subgraph Services["Application Services (Non-Root Containers)"]
+        Frontend["Next.js Standalone Runner (nextjs:10001)<br/>App Router, TanStack Query, shadcn/ui"]
+        Backend["FastAPI Backend (appuser:10001)<br/>Clean Architecture: Domain, App, Infra, API"]
+        Worker["Celery Worker (appuser:10001)<br/>OCR, Ingestion, Notification Delivery"]
+        Beat["Celery Beat Scheduler (appuser:10001)<br/>Dispatcher (30s), Nightly Backup (02:00)"]
+    end
+
+    subgraph Infrastructure["Persistence & Message Broker Tier"]
+        Postgres[("PostgreSQL 16 Database")]
+        Redis[("Redis 7 Cache & Broker")]
+        MinIO[("MinIO S3 Object Storage<br/>Buckets: circulars, timetables, backups")]
+        InitBucket["create-buckets Provisioner"]
+    end
+
+    subgraph CI["Continuous Integration (GitHub Actions)"]
+        GHA["ci.yml Workflow<br/>Lint, Mypy Strict, Pytest, Next.js Build, Mermaid Render"]
+    end
+
+    Browser --> Caddy
+    E2E --> Caddy
+    Caddy -->|/api/*, /docs, /openapi.json| Backend
+    Caddy -->|UI Routes| Frontend
+    Frontend -.->|Internal API Proxy| Backend
+    Backend --> Postgres
+    Backend --> Redis
+    Backend --> MinIO
+    Worker --> Postgres
+    Worker --> Redis
+    Worker --> MinIO
+    Beat --> Redis
+    InitBucket -.-> MinIO
+    GHA -.->|Validates| Backend
+    GHA -.->|Validates| Frontend
+```

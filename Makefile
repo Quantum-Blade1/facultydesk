@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate seed lint typecheck test fmt graph diagrams backup restore vapid-keys
+.PHONY: up down logs migrate seed demo lint typecheck test fmt graph diagrams backup restore vapid-keys
 
 up:
 	docker compose up -d --build
@@ -14,6 +14,9 @@ migrate:
 
 seed:
 	cd backend && uv run python -m app.infrastructure.seed.seed_data
+
+demo: seed
+	python3 scripts/demo_setup.py
 
 lint:
 	cd backend && uv run ruff check .

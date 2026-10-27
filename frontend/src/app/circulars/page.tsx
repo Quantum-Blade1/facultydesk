@@ -27,6 +27,7 @@ import {
   Check,
   X,
   FileSearch,
+  RefreshCw,
 } from "lucide-react";
 
 export default function CircularsPage() {
@@ -76,6 +77,10 @@ export default function CircularsPage() {
   React.useEffect(() => {
     if (user) {
       loadCirculars();
+      const timer = setInterval(() => {
+        loadCirculars();
+      }, 3000);
+      return () => clearInterval(timer);
     }
   }, [user, loadCirculars]);
 
@@ -84,7 +89,7 @@ export default function CircularsPage() {
     const file = e.target.files[0];
     setUploading(true);
     try {
-      const res = await api.circulars.upload(file);
+      const res = await api.circulars.upload(file, profile?.department_id);
       toast("Circular uploaded. Background OCR and extraction running...", "info");
       setTimeout(() => {
         loadCirculars();

@@ -92,9 +92,15 @@ async def login(
     client_ip = _get_client_ip(request)
     normalized_email = payload.email.strip().lower()
 
-    await limiter.check_and_consume(f"ratelimit:login:ip:{client_ip}", limit=5, window_seconds=60)
     await limiter.check_and_consume(
-        f"ratelimit:login:account:{normalized_email}", limit=5, window_seconds=60
+        f"ratelimit:login:ip:{client_ip}",
+        limit=settings.LOGIN_RATE_LIMIT_PER_MINUTE,
+        window_seconds=60,
+    )
+    await limiter.check_and_consume(
+        f"ratelimit:login:account:{normalized_email}",
+        limit=settings.LOGIN_RATE_LIMIT_PER_MINUTE,
+        window_seconds=60,
     )
 
     use_case = LoginUseCase(uow, clock)
@@ -149,7 +155,9 @@ async def refresh_tokens(
     """Rotate refresh token and issue a fresh access token."""
     client_ip = _get_client_ip(request)
     await limiter.check_and_consume(
-        f"ratelimit:refresh:ip:{client_ip}", limit=30, window_seconds=60
+        f"ratelimit:refresh:ip:{client_ip}",
+        limit=settings.LOGIN_RATE_LIMIT_PER_MINUTE * 2,
+        window_seconds=60,
     )
 
     raw_token = refresh_token or request.headers.get("X-Refresh-Token")

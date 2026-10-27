@@ -660,13 +660,81 @@ make lint
 make typecheck
 make test
 
+# Run Playwright E2E smoke tests
+cd frontend && pnpm test:e2e
+
+# Prepare fresh environment for live demonstration
+make demo
+
 # Tear down environment
 make down
 ```
 
-### URLs
+### Production deployment
+
+FacultyDesk ships with a production-hardened compose definition (`docker-compose.prod.yml`) utilizing:
+- Multi-stage non-root containers for both backend (`appuser:10001`) and frontend (`nextjs:10001`).
+- Standalone Next.js runner with automatic `/api/*` internal reverse proxy to backend.
+- Caddy reverse proxy serving automatic HTTPS with HTTP/2 and HTTP/3 support.
+- MinIO S3 object storage with automated bucket provisioning (`create-buckets`).
+- Resource limits (`cpus: "2"`, `memory: 2G`) and strict restart policies across all services.
+
+To deploy in production with a public domain:
+```bash
+# 1. Configure environment variables in .env
+DOMAIN=facultydesk.example.edu
+CADDY_TLS_DIRECTIVE=acme
+
+# 2. Boot production stack
+docker compose -f docker-compose.prod.yml up -d
+
+# 3. Apply database migrations
+docker compose -f docker-compose.prod.yml exec backend uv run alembic upgrade head
+```
+
+### College-LAN mode (Department Server deployment)
+
+For college intranets or department server labs operating without a public internet domain or public DNS, FacultyDesk supports **College-LAN mode**. Caddy acts as an internal Certificate Authority (CA) issuing locally trusted TLS certificates on LAN IP addresses or internal hostname aliases (e.g. `facultydesk.local` or `192.168.1.100`).
+
+Configuration:
+```env
+# In .env:
+DOMAIN=facultydesk.cse.college.local
+CADDY_TLS_DIRECTIVE=internal
+```
+
+In `Caddyfile`:
+```caddy
+{$DOMAIN:localhost} {
+    tls {$CADDY_TLS_DIRECTIVE:internal}
+
+    # API and docs routed to backend
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+    handle /docs* {
+        reverse_proxy backend:8000
+    }
+    handle /openapi.json {
+        reverse_proxy backend:8000
+    }
+
+    # All UI routes handled by Next.js standalone runner
+    handle {
+        reverse_proxy frontend:3000
+    }
+}
+```
+
+To trust Caddy's internal root CA on faculty workstations connected to the department Wi-Fi/LAN:
+1. Fetch root CA certificate: `curl -k https://<server-ip>/caddy-pki-root.crt` or copy `/data/caddy/pki/authorities/local/root.crt` from the Caddy container.
+2. Install into OS trust store (macOS Keychain, Windows Trusted Root Authorities, or Linux `/usr/local/share/ca-certificates/`).
+3. Department faculty can navigate securely to `https://facultydesk.cse.college.local` with zero browser certificate warnings.
+
+### Service URLs (Dev Mode)
 - Frontend: `http://localhost:3000`
 - API & Docs: `http://localhost:8000/docs`
 - Health Probe: `http://localhost:8000/healthz`
 - Readiness Probe: `http://localhost:8000/readyz`
 - MinIO Console: `http://localhost:9001`
+- Mailpit Web UI: `http://localhost:8025`

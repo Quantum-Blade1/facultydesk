@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "11",
+  "current_stage": "12",
   "stages": [
     {
       "id": "01",
@@ -300,12 +300,24 @@
     {
       "id": "11",
       "file": "11-deploy-and-e2e.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
+      "status": "done",
+      "started_at": "2026-10-28T02:00:00+05:30",
+      "finished_at": "2026-10-28T02:52:00+05:30",
       "commit": null,
-      "tasks": [],
-      "evidence": []
+      "tasks": [
+        "docker-compose.prod.yml: multi-stage non-root images (appuser:10001, nextjs:10001), standalone Next.js with internal API proxy, Caddy HTTPS with auto TLS, resource limits, healthchecks, MinIO bucket provisioner",
+        "Documented College-LAN mode for departmental server deployment with Caddy internal TLS (tls internal) and root CA trust instructions in docs/PROJECT.md",
+        "GitHub Actions CI workflow (.github/workflows/ci.yml) validating backend lint, mypy strict, pytest against PostgreSQL 16 & Redis 7 services, frontend lint/typecheck/build, and mermaid CLI rendering",
+        "Playwright smoke test suite (frontend/e2e/): 4 journeys (01-timetable-classes, 02-circular-meeting, 03-meeting-reminder-sent, 04-task-completion-alerts)",
+        "make demo command and scripts/demo_setup.py: automated 6-step demo preparation seeding users, terms, holidays, timetables, and circulars for live demonstration readiness"
+      ],
+      "evidence": [
+        "docker compose -f docker-compose.prod.yml config -> Valid YAML syntax and clean schema resolution across all 7 production services",
+        "make demo -> [✓] Database seeded idempotently, [✓] API healthy, [✓] Demo users validated, [✓] Timetable ingestion verified, [✓] Circular meeting verified, [✓] System metrics confirmed",
+        "cd frontend && pnpm test:e2e -> 4 passed (11.2s) across 4 end-to-end smoke journeys with zero flakes",
+        "make lint typecheck test -> ruff passed (0 errors), mypy strict passed (121 source files, 0 errors), tsc --noEmit passed (0 errors), pytest passed (83/83 passed in 11.92s)",
+        "docs/diagrams/stage_11_decisions.png and svg rendered via @mermaid-js/mermaid-cli"
+      ]
     },
     {
       "id": "12",

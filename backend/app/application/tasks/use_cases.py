@@ -161,7 +161,12 @@ class AssignTaskUseCase:
     ) -> list[Task]:
         target_user_ids: list[UUID] = []
         if assignee_ids:
-            target_user_ids.extend(assignee_ids)
+            for aid in assignee_ids:
+                prof = await self._uow.faculty_profiles.get_by_id(aid)
+                if prof is not None:
+                    target_user_ids.append(prof.user_id)
+                else:
+                    target_user_ids.append(aid)
         elif department_id is not None:
             profiles = await self._uow.faculty_profiles.list_by_department(department_id)
             target_user_ids.extend([p.user_id for p in profiles])
