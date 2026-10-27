@@ -1,0 +1,149 @@
+{
+  "project": "FacultyDesk",
+  "current_stage": "02",
+  "stages": [
+    {
+      "id": "01",
+      "file": "01-foundation.md",
+      "status": "done",
+      "started_at": "2026-10-27T07:25:00+05:30",
+      "finished_at": "2026-10-27T07:54:00+05:30",
+      "commit": "6bd6677bf0b7670799725d36bf9dfb48abb357b1",
+      "tasks": [
+        "git init and .gitignore",
+        "install graphify hooks and trusted skills",
+        "create directory structure",
+        "backend setup (uv, dependencies, core, healthz/readyz)",
+        "celery worker and beat setup",
+        "frontend setup (Next.js, TypeScript strict, Tailwind, shadcn)",
+        "docker-compose.yml and Makefile",
+        "tests, lint, typecheck",
+        "docs update and initial graphify build"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 19 source files; 3 passed in 0.13s",
+        "docker compose ps -> 7 services (postgres, redis, minio, backend, worker, beat, frontend) healthy / running",
+        "curl http://localhost:8000/healthz -> {\"status\":\"ok\"}",
+        "curl http://localhost:8000/readyz -> {\"status\":\"ready\"}",
+        "curl http://localhost:3000 -> 200 OK with FacultyDesk Readiness dashboard"
+      ]
+    },
+    {
+      "id": "02",
+      "file": "02-domain-model.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "03",
+      "file": "03-auth-and-directory.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "04",
+      "file": "04-timetable-ingestion.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "05",
+      "file": "05-calendar-core.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "06",
+      "file": "06-reminder-engine.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "07",
+      "file": "07-circular-ocr.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "08",
+      "file": "08-tasks-and-alerts.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "09",
+      "file": "09-frontend-pwa.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "10",
+      "file": "10-hardening.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "11",
+      "file": "11-deploy-and-e2e.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    },
+    {
+      "id": "12",
+      "file": "12-ooad-pack-and-final-audit.md",
+      "status": "pending",
+      "started_at": null,
+      "finished_at": null,
+      "commit": null,
+      "tasks": [],
+      "evidence": []
+    }
+  ],
+  "blockers": [],
+  "decisions_pending": [
+    "Adopted cgr.dev/chainguard/minio:latest for MinIO and MinIO client because official minio/minio images were removed from public Docker Hub.",
+    "Stopped legacy cmg_* containers occupying ports 5432, 6379, 8000, 9000 without deleting volumes or data.",
+    "Added allowBuilds for unrs-resolver in frontend/pnpm-workspace.yaml due to pnpm v12 strict build policy.",
+    "Used standard property on Settings.DATABASE_URL without computed_field to satisfy strict mypy with zero type ignores."
+  ]
+}
