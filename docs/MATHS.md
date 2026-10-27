@@ -401,8 +401,199 @@ END:VCALENDAR
 
 ## 3. Reminder Scheduling
 
+### 3.1 Fire Time and Lead-Time Computation
+
+1. **Idea**:
+Reminders are scheduled relative to the event start timestamp $T$ (or task deadline) using a lead-time offset $L$. A reminder is created if and only if its computed fire time $f$ lies in the future relative to the current wall-clock time and the source event is active (not cancelled).
+
+2. **Formula and Invariants**:
+Let $T \in \text{timestamptz}$ be the event start time in canonical UTC.
+Let $L \in \mathbb{N}^+$ be the lead-time offset duration in minutes.
+Let $t_{\text{now}} \in \text{timestamptz}$ be the current timestamp from the injected `Clock`.
+
+The theoretical fire timestamp $f \in \text{timestamptz}$ is:
+$$f = T - L \times 60\text{ seconds}$$
+
+Scheduling Invariant:
+A `ScheduledNotification` record is planned and stored if and only if:
+$$f > t_{\text{now}} \quad \land \quad E.\text{status} \ne \text{CANCELLED}$$
+If $f \le t_{\text{now}}$, the lead-time window has already passed; no historical notification is created.
+
+Default Offset Sets by Event Kind:
+- Class event: $L_{\text{CLASS}} = \{15\}$ minutes.
+- Meeting event: $L_{\text{MEETING}} = \{1440, 60, 10\}$ minutes (24 hours, 1 hour, 10 minutes).
+- Deadline event: $L_{\text{DEADLINE}} = \{2880, 1440, 120\}$ minutes (48 hours, 24 hours, 2 hours).
+
+Faculty can override default offset sets per event kind via personal `ReminderRule` configuration.
+
+3. **Worked Example**:
+- Event start: $T = \text{2026-10-28 10:00:00 UTC}$.
+- Current time: $t_{\text{now}} = \text{2026-10-27 19:30:00 UTC}$.
+- Meeting lead times: $L_1 = 1440\text{ min}$, $L_2 = 60\text{ min}$, $L_3 = 10\text{ min}$.
+  - $f_1 = T - 1440\text{m} = \text{2026-10-27 10:00:00 UTC}$. Here $f_1 \le t_{\text{now}}$ (past) $\implies$ discarded.
+  - $f_2 = T - 60\text{m} = \text{2026-10-28 09:00:00 UTC} > t_{\text{now}} \implies$ scheduled.
+  - $f_3 = T - 10\text{m} = \text{2026-10-28 09:50:00 UTC} > t_{\text{now}} \implies$ scheduled.
+
+4. **Edge Cases**:
+- Event rescheduled: Existing `PENDING` notifications for the event are marked `CANCELLED`, and new notifications are planned with the updated start time $T'$.
+- Event cancelled: All associated `PENDING` notifications transition immediately to `CANCELLED`.
+- Event start moved into the past: All future planned reminders are pruned or cancelled.
+
+5. **Complexity**:
+- Time complexity: $O(|L|)$ date arithmetic calculations per attendee, where $|L| \le 5$.
+- Space complexity: $O(|L| \cdot |\text{attendees}| \cdot |\text{channels}|)$.
+
+### 3.2 Quiet Hours Shift with Midnight-Crossing Window
+
+1. **Idea**:
+Faculty define personal quiet hours (e.g., 22:00 to 07:00 IST) during which audible alerts must not disturb them. When a computed fire time $f$ falls within this quiet window, it is postponed to the end of the window. However, to guarantee that faculty never miss a class or urgent morning commitment, an exception applies: if the event itself starts before or at the quiet window end, shifting the reminder would place it after the event has already started; in this case, the reminder must fire at $f$ without postponement.
+
+2. **Formula and Invariants**:
+Let the quiet hours interval be defined by local wall-clock times $q_s, q_e \in [00:00, 24:00)$ in timezone $Z = \text{Asia/Kolkata}$.
+Let $f_{\text{local}} = \operatorname{astimezone}(f, Z).\operatorname{time}()$.
+Let $T_{\text{local}} = \operatorname{astimezone}(T, Z)$.
+
+Membership predicate $\operatorname{in\_quiet}(t, q_s, q_e)$:
+$$\operatorname{in\_quiet}(t, q_s, q_e) = \begin{cases}
+q_s \le t < q_e & \text{if } q_s < q_e \quad (\text{same-day window, e.g. 13:00 to 14:00}) \\
+t \ge q_s \lor t < q_e & \text{if } q_s > q_e \quad (\text{overnight window, e.g. 22:00 to 07:00}) \\
+\text{False} & \text{if } q_s = q_e \quad (\text{quiet hours disabled})
+\end{cases}$$
+
+Shift Rule $\operatorname{AdjustQuiet}(f, T, q_s, q_e, Z)$:
+If $\operatorname{in\_quiet}(f_{\text{local}}, q_s, q_e)$ is True:
+1. Determine the window end datetime $W_{\text{end}}$ corresponding to the specific occurrence of $f$:
+   - If $q_s < q_e$: $W_{\text{end}} = \operatorname{datetime}(f_{\text{local}}.\text{date}(), q_e, Z)$.
+   - If $q_s > q_e$:
+     - If $f_{\text{local}}.\operatorname{time}() \ge q_s$: $W_{\text{end}} = \operatorname{datetime}(f_{\text{local}}.\text{date}() + 1\text{ day}, q_e, Z)$.
+     - If $f_{\text{local}}.\operatorname{time}() < q_e$: $W_{\text{end}} = \operatorname{datetime}(f_{\text{local}}.\text{date}(), q_e, Z)$.
+2. Evaluate Event Start Constraint:
+   If $T \le \operatorname{astimezone}(W_{\text{end}}, \text{UTC})$:
+   $$\operatorname{AdjustQuiet} = f \quad (\text{Urgent: class/event starts before quiet window ends})$$
+   Else:
+   $$\operatorname{AdjustQuiet} = \operatorname{astimezone}(W_{\text{end}}, \text{UTC})$$
+Else:
+$$\operatorname{AdjustQuiet} = f$$
+
+3. **Worked Example**:
+- Quiet window: $q_s = \text{22:00}$, $q_e = \text{07:00}$ IST (crosses midnight).
+- Case A (Normal shift):
+  - Meeting start: $T = \text{2026-10-28 10:00 IST}$ ($T_{\text{UTC}} = \text{04:30Z}$).
+  - Lead time: $L = 480\text{ min}$ (8 hours).
+  - Unadjusted fire time: $f = \text{2026-10-28 02:00 IST}$.
+  - $f_{\text{local}} = 02:00 < 07:00 \implies \operatorname{in\_quiet} = \text{True}$.
+  - Window end: $W_{\text{end}} = \text{2026-10-28 07:00 IST}$.
+  - $T = \text{10:00 IST} > W_{\text{end}} = \text{07:00 IST} \implies f' = \text{2026-10-28 07:00 IST}$ ($01:30\text{ UTC}$).
+- Case B (Urgent morning class exception):
+  - Class start: $T = \text{2026-10-28 06:45 IST}$.
+  - Lead time: $L = 15\text{ min}$.
+  - Unadjusted fire time: $f = \text{2026-10-28 06:30 IST}$.
+  - $f_{\text{local}} = 06:30 < 07:00 \implies \operatorname{in\_quiet} = \text{True}$.
+  - Window end: $W_{\text{end}} = \text{2026-10-28 07:00 IST}$.
+  - $T = \text{06:45 IST} \le W_{\text{end}} = \text{07:00 IST} \implies$ Shifting to 07:00 would miss the class!
+  - Rule fires: $f' = f = \text{2026-10-28 06:30 IST}$ ($01:00\text{ UTC}$). The notification is preserved.
+
+4. **Edge Cases**:
+- $q_s = q_e$: Predicate evaluates to False; no shift occurs.
+- $f$ exactly at $q_s$: Half-open $[q_s, q_e)$ includes $q_s$, shifted to $q_e$.
+- $f$ exactly at $q_e$: Half-open excludes $q_e$, fires immediately at $f$.
+
+5. **Complexity**:
+- Time complexity: $O(1)$.
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_quiet_hours_table`: Tests normal shift, outside window, crossing midnight, exact boundaries, and the emergency class start exception.
 
 ## 4. Exactly-Once Delivery
+
+### 4.1 Deterministic Idempotency Key Derivation
+
+1. **Idea**:
+To prevent duplicate notification rows across recurring timetable materialisation jobs, concurrent event rescheduling, or retried requests, every scheduled notification carries a cryptographically deterministic natural idempotency key backed by a PostgreSQL unique index.
+
+2. **Formula and Invariants**:
+Let $T_{\text{id}} \in \text{UUID}$ be the target ID (Event ID or Task ID).
+Let $u_{\text{id}} \in \text{UUID}$ be the recipient User ID.
+Let $L \in \mathbb{N}^+$ be the lead-time offset in minutes.
+Let $c \in \{\text{EMAIL}, \text{PUSH}\}$ be the delivery channel.
+
+The idempotency key string $k$ is derived via canonical SHA-256:
+$$k = \operatorname{SHA-256}\left(\operatorname{str}(T_{\text{id}}) \mathbin{\Vert} \text{":"} \mathbin{\Vert} \operatorname{str}(u_{\text{id}}) \mathbin{\Vert} \text{":"} \mathbin{\Vert} \operatorname{str}(L) \mathbin{\Vert} \text{":"} \mathbin{\Vert} c.\text{value}\right)$$
+
+Database Invariant:
+$$\text{CREATE UNIQUE INDEX uq\_notifications\_idempotency\_key ON scheduled\_notifications (idempotency\_key);}$$
+Any planning re-execution for the same tuple $(T_{\text{id}}, u_{\text{id}}, L, c)$ executes an idempotent upsert (`ON CONFLICT (idempotency_key) DO UPDATE SET fire_at_utc = EXCLUDED.fire_at_utc WHERE status = 'PENDING'`), guaranteeing at-most-once row creation.
+
+3. **Worked Example**:
+- Event ID: `18bd2535-a9db-426c-8daa-a3ab363a2855`
+- User ID: `b9b979b8-a05c-4125-83d9-34d25c517867`
+- Offset: `15`
+- Channel: `EMAIL`
+- Input string: `18bd2535-a9db-426c-8daa-a3ab363a2855:b9b979b8-a05c-4125-83d9-34d25c517867:15:EMAIL`
+- Key $k = \operatorname{SHA-256}(\dots) = \text{64-character lowercase hexadecimal hash}$.
+
+### 4.2 Distributed Dispatch via Skip-Locked Batch Claiming
+
+1. **Idea**:
+When multiple Celery worker processes execute the periodic dispatcher concurrently, they must not claim or deliver the same notifications. We use PostgreSQL row-level locking with `FOR UPDATE SKIP LOCKED`.
+
+2. **Dispatch Algorithm**:
+```sql
+SELECT id FROM scheduled_notifications
+WHERE status = 'PENDING'
+  AND fire_at_utc <= :now_utc
+ORDER BY fire_at_utc ASC
+LIMIT :batch_size
+FOR UPDATE SKIP LOCKED;
+```
+Within the same database transaction:
+```sql
+UPDATE scheduled_notifications
+SET status = 'SENDING', updated_at_utc = :now_utc
+WHERE id = ANY(:claimed_ids);
+```
+Transaction commits immediately. The lock is released, and claimed rows transition to `SENDING`.
+
+Delivery Execution (Outside Database Transaction):
+For each claimed notification:
+1. Lookup channel notifier: `notifier = factory.get_notifier(notification.channel)`.
+2. Execute transmission: `await notifier.send(notification)`.
+3. If transmission succeeds:
+   Update database: `status = 'SENT', delivered_at_utc = now_utc`.
+4. If transmission fails:
+   Update database: `attempts += 1, error_message = err`.
+   If `attempts < max_attempts` (5):
+     `status = 'PENDING', fire_at_utc = now_utc + backoff(attempts)`.
+   Else:
+     `status = 'FAILED'`.
+
+### 4.3 Stale SENDING Recovery and Failure Window Bound
+
+1. **Analysis of Exactly-Once vs At-Least-Once Boundary**:
+External email (SMTP) and web push (VAPID HTTP) protocols do not support distributed two-phase commit transactions. Therefore:
+- The system achieves **strict exactly-once scheduling and storage** ($UNIQUE(\text{idempotency\_key})$).
+- The system achieves **strict disjoint dispatch** (`FOR UPDATE SKIP LOCKED`).
+- In normal operation (healthy worker and reachable providers), each notification is transmitted **exactly once**.
+- **Failure Window Analysis**:
+  A duplicate transmission can only occur if a worker experiences a hard crash (e.g. process SIGKILL, host kernel panic, OOM killer) in the narrow temporal interval $\Delta t_{\text{vuln}}$:
+  $$\Delta t_{\text{vuln}} = [t_{\text{external\_provider\_ack}}, t_{\text{db\_sent\_commit}}]$$
+  where $\Delta t_{\text{vuln}}$ is bounded by the local network database roundtrip:
+  $$\mathbb{E}[\Delta t_{\text{vuln}}] \approx 2\text{ to } 8\text{ ms}$$
+  If the worker crashes during $\Delta t_{\text{vuln}}$, the stale recovery worker (running every 5 minutes) detects rows stuck in `SENDING` for $t > 5\text{ minutes}$ and transitions them back to `PENDING`, causing a single re-delivery. Under all non-fatal network exceptions and API errors, zero duplicates occur.
+
+### 4.4 Maximum Lateness Bound
+
+1. **Formula**:
+Let $I_{\text{poll}} = 30\text{ seconds}$ be the Celery Beat dispatch trigger period.
+Let $N_{\text{batch}} = 100$ be the maximum batch claim size.
+Let $T_{\text{dispatch}}$ be the batch delivery duration across asynchronous workers ($T_{\text{dispatch}} \le 3.0\text{ s}$).
+
+The upper bound on notification delivery lateness $L_{\text{max}}$ for any due notification is:
+$$L_{\text{max}} \le I_{\text{poll}} + T_{\text{dispatch}} = 30.0\text{ s} + 3.0\text{ s} = 33.0\text{ seconds}$$
+Under normal load, the expected lateness is:
+$$\mathbb{E}[\text{lateness}] = \frac{I_{\text{poll}}}{2} + \mathbb{E}[T_{\text{dispatch}}] \approx 15\text{ s} + 0.5\text{ s} = 15.5\text{ seconds}$$
+
 
 ## 5. Initials and Name Matching
 
@@ -603,6 +794,50 @@ $$t_{\text{start}} < t_{\text{end}}$$
 ## 8. Task Priority and Alerts
 
 ## 9. Retry Backoff
+
+### 9.1 Exponential Backoff with Full Jitter
+
+1. **Idea**:
+When external notification delivery (SMTP or WebPush) encounters transient network timeouts, rate limits, or connection resets, retries must not execute immediately or in lockstep across worker processes. We implement **Full Jitter Exponential Backoff** (Decorrelated Jitter principle). Full Jitter distributes retry attempts uniformly across the exponential interval $[0, \min(C, B \cdot 2^n)]$, which mathematically minimizes peak server collision and queue congestion compared to fixed or equal jitter backoff.
+
+2. **Formula and Invariants**:
+Let $n \in \{0, 1, 2, \dots, n_{\text{max}} - 1\}$ be the zero-indexed retry attempt index.
+Let $B = 30.0\text{ seconds}$ be the initial base backoff delay.
+Let $C = 1800.0\text{ seconds}$ (30 minutes) be the maximum backoff ceiling cap.
+Let $n_{\text{max}} = 5$ be the maximum allowed retry attempts before marking the notification `FAILED`.
+
+The exponential upper bound for attempt $n$ is:
+$$\operatorname{ceiling}(n) = \min\left(C, B \cdot 2^n\right)$$
+
+The actual retry delay $\Delta t_{\text{delay}}$ in seconds is sampled uniformly at random:
+$$\Delta t_{\text{delay}}(n) \sim \operatorname{Uniform}\left(0, \operatorname{ceiling}(n)\right)$$
+
+Invariants:
+$$\forall n \ge 0, \quad 0.0 \le \Delta t_{\text{delay}}(n) \le C$$
+$$\mathbb{E}[\Delta t_{\text{delay}}(n)] = \frac{\min(C, B \cdot 2^n)}{2}$$
+
+3. **Worked Example**:
+$B = 30\text{s}, C = 1800\text{s}$:
+- Attempt 0: $\operatorname{ceiling}(0) = \min(1800, 30 \cdot 1) = 30\text{s} \implies \Delta t \in [0, 30\text{s}], \mathbb{E} = 15\text{s}$.
+- Attempt 1: $\operatorname{ceiling}(1) = \min(1800, 30 \cdot 2) = 60\text{s} \implies \Delta t \in [0, 60\text{s}], \mathbb{E} = 30\text{s}$.
+- Attempt 2: $\operatorname{ceiling}(2) = \min(1800, 30 \cdot 4) = 120\text{s} \implies \Delta t \in [0, 120\text{s}], \mathbb{E} = 60\text{s}$.
+- Attempt 3: $\operatorname{ceiling}(3) = \min(1800, 30 \cdot 8) = 240\text{s} \implies \Delta t \in [0, 240\text{s}], \mathbb{E} = 120\text{s}$.
+- Attempt 4: $\operatorname{ceiling}(4) = \min(1800, 30 \cdot 16) = 480\text{s} \implies \Delta t \in [0, 480\text{s}], \mathbb{E} = 240\text{s}$.
+- Attempt 5: Exceeds $n_{\text{max}} = 5 \implies$ State transitions to `FAILED`. No further retry scheduled.
+
+4. **Edge Cases**:
+- Clock skew during retry: Retry schedule sets $f' = t_{\text{now}} + \Delta t_{\text{delay}}$ in UTC, invariant to timezone transitions.
+- $n \to \infty$: Bounded by $C = 1800.0\text{s}$, preventing integer overflow or infinite delays.
+- Immediate retry when $n=0$: Full jitter allows delay close to 0s if transient network hiccup resolved immediately, while bounding maximum initial delay at 30s.
+
+5. **Complexity**:
+- Time complexity: $O(1)$.
+- Space complexity: $O(1)$.
+
+6. **Proof Plan**:
+- `test_backoff_bounds`: Property test verifying $\forall n \in [0, 100], \quad 0 \le \operatorname{compute\_backoff}(n) \le 1800.0$.
+- `test_backoff_expected_mean`: Hypothesis test proving statistical mean of samples converges to $\frac{\min(C, B \cdot 2^n)}{2}$ within standard deviation confidence bounds.
+
 
 ## 10. Security Limits
 

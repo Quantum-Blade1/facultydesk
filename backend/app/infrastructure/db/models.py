@@ -50,6 +50,8 @@ class UserModel(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="FACULTY")
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    quiet_hours_start: Mapped[time | None] = mapped_column(Time, nullable=True)
+    quiet_hours_end: Mapped[time | None] = mapped_column(Time, nullable=True)
     created_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -291,13 +293,19 @@ class ScheduledNotificationModel(Base):
         String(255), unique=True, nullable=False, index=True
     )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delivered_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
 
 
 class ReminderRuleModel(Base):
     __tablename__ = "reminder_rules"
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_kind", name="uq_reminder_rules_user_event_kind"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -310,6 +318,9 @@ class ReminderRuleModel(Base):
 
 class PushSubscriptionModel(Base):
     __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "endpoint", name="uq_push_subscriptions_user_endpoint"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(

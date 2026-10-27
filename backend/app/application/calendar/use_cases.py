@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from app.application.calendar.free_slots import BusyInterval, FreeSlotFinder
 from app.application.calendar.ics_service import generate_vcalendar_ics
 from app.application.calendar.recurrence import expand_slot_recurrence
+from app.application.reminders.planner import ReminderPlanner
 from app.core.clock import Clock
 from app.domain.entities import Event, EventAttendee
 from app.domain.errors import ClashDetectedError, EntityNotFound
@@ -92,6 +93,8 @@ class MaterialiseTimetableEventsUseCase:
                         attendee_ids=(slot.faculty_id,),
                     )
                 )
+                planner = ReminderPlanner(self._clock)
+                await planner.plan_event_reminders(saved, self._uow)
                 count += 1
 
         return count
@@ -189,12 +192,15 @@ class CreateEventUseCase:
                 attendee_ids=tuple(attendee_ids),
             )
         )
+        planner = ReminderPlanner(self._clock)
+        await planner.plan_event_reminders(saved, self._uow)
         return saved
 
 
 class UpdateEventUseCase:
-    def __init__(self, uow: UnitOfWork) -> None:
+    def __init__(self, uow: UnitOfWork, clock: Clock | None = None) -> None:
         self._uow = uow
+        self._clock = clock
 
     async def execute(
         self,
@@ -210,6 +216,7 @@ class UpdateEventUseCase:
         if event is None:
             raise EntityNotFound("Event", str(event_id))
 
+        rescheduled = False
         if start_utc is not None and end_utc is not None:
             target_aids = (
                 attendee_ids
@@ -226,6 +233,7 @@ class UpdateEventUseCase:
                     clashes=clashes,
                 )
             event.reschedule(start_utc, end_utc)
+            rescheduled = True
 
         if title is not None:
             event.title = title
@@ -247,12 +255,18 @@ class UpdateEventUseCase:
                     )
             event.attendees = new_attendees
 
-        return await self._uow.events.save(event)
+        saved = await self._uow.events.save(event)
+        if rescheduled and self._clock is not None:
+            planner = ReminderPlanner(self._clock)
+            await planner.handle_event_rescheduled(saved, self._uow)
+
+        return saved
 
 
 class CancelEventUseCase:
-    def __init__(self, uow: UnitOfWork) -> None:
+    def __init__(self, uow: UnitOfWork, clock: Clock | None = None) -> None:
         self._uow = uow
+        self._clock = clock
 
     async def execute(self, event_id: UUID, reason: str = "") -> None:
         event = await self._uow.events.get_by_id(event_id)
@@ -260,6 +274,9 @@ class CancelEventUseCase:
             raise EntityNotFound("Event", str(event_id))
 
         event.cancel(reason)
+        if self._clock is not None:
+            planner = ReminderPlanner(self._clock)
+            await planner.handle_event_cancelled(event_id, self._uow)
         await self._uow.events.delete(event_id)
 
 

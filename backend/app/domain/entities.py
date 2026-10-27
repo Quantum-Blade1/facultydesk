@@ -1,6 +1,6 @@
 import secrets
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -19,6 +19,7 @@ from app.domain.value_objects import (
     Initials,
     NotificationChannel,
     NotificationStatus,
+    QuietHours,
     Role,
     TaskStatus,
     TimeSlot,
@@ -46,10 +47,18 @@ class User:
     password_hash: str = ""
     role: Role = Role.FACULTY
     is_active: bool = True
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
 
     def __post_init__(self) -> None:
         if not self.email.strip() or "@" not in self.email:
             raise InvariantViolation(f"Invalid email: '{self.email}'")
+
+    @property
+    def quiet_hours(self) -> QuietHours | None:
+        if self.quiet_hours_start is not None and self.quiet_hours_end is not None:
+            return QuietHours(self.quiet_hours_start, self.quiet_hours_end)
+        return None
 
 
 @dataclass
@@ -373,8 +382,9 @@ class ScheduledNotification:
     )
     idempotency_key: str = ""
     attempts: int = 0
-    max_attempts: int = 3
+    max_attempts: int = 5
     last_error: str | None = None
+    delivered_at_utc: datetime | None = None
     status: NotificationStatus = NotificationStatus.PENDING
 
     def _transition(self, target: NotificationStatus) -> None:
@@ -387,9 +397,10 @@ class ScheduledNotification:
         self._transition(NotificationStatus.SENDING)
         self.attempts += 1
 
-    def mark_sent(self) -> None:
+    def mark_sent(self, delivered_at: datetime | None = None) -> None:
         self._transition(NotificationStatus.SENT)
         self.last_error = None
+        self.delivered_at_utc = delivered_at
 
     def mark_failed(self, error: str) -> None:
         self._transition(NotificationStatus.FAILED)

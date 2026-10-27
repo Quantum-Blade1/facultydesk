@@ -26,6 +26,14 @@ celery_app.conf.update(
             "task": "materialise_all_timetable_events",
             "schedule": crontab(hour=0, minute=5),
         },
+        "dispatch-due-notifications-every-30s": {
+            "task": "dispatch_due_notifications",
+            "schedule": 30.0,
+        },
+        "recover-stale-sending-notifications-every-5m": {
+            "task": "recover_stale_sending_notifications",
+            "schedule": 300.0,
+        },
     },
 )
 

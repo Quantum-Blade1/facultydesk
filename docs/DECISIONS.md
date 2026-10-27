@@ -202,5 +202,46 @@ flowchart TD
     ICS --> WebCal["External Calendar Clients"]
 ```
 
+- **Stage 06: Reminder engine with exactly-once delivery**
+  - What we built:
+    - Reversible migration adding user quiet hours (`quiet_hours_start`, `quiet_hours_end`), `delivered_at_utc` on `scheduled_notifications`, and unique constraints on reminder rules and push subscriptions.
+    - Reminder planning hook triggered on event creation, reschedule, cancellation, and rolling materialisation, with custom rules or defaults (`CLASS`: 15m; `MEETING`: 1440m, 60m, 10m).
+    - Dispatcher with atomic batch claiming via `SELECT ... FOR UPDATE SKIP LOCKED` and two-phase delivery (claim in transaction, send outside transaction).
+    - Multi-channel `CompositeNotifier` integrating `EmailNotifier` (aiosmtplib with HTML/text) and `WebPushNotifier` (pywebpush with VAPID, automatically pruning 404/410 endpoints).
+    - Full-jitter exponential backoff retry scheduler ($\Delta t \sim \text{Uniform}(0, \min(C, B \cdot 2^n))$) and periodic worker recovery for stale `SENDING` notifications.
+    - Quiet hours shift logic with midnight-crossing intervals and emergency morning class exemptions.
+    - Celery Beat schedule running `dispatch_due_notifications` every 30s and `recover_stale_sending_notifications` every 5m.
+    - REST API routers for reminder rules, quiet hours, push subscriptions, and upcoming notifications.
+    - Local Mailpit test environment container added to Docker Compose for automated SMTP inspection.
+  - Why this way:
+    - `SELECT ... FOR UPDATE SKIP LOCKED` eliminates contention between concurrent dispatch workers without distributed locking overhead, guaranteeing each notification is claimed by at most one worker.
+    - Deterministic SHA-256 idempotency keys backed by a unique database constraint guarantee that duplicate rows cannot be created during event re-planning or retry attempts.
+    - Executing external I/O (SMTP and WebPush HTTP) outside the database transaction prevents long-lived transactions, connection pool exhaustion, and lock serialization bottlenecks.
+    - Storing quiet hours on the user aggregate ensures all notification types adhere to the faculty member's off-hours preferences, while the emergency morning class exemption prevents missing early classes.
+  - What we rejected and why:
+    - Redis-only message queuing for reminders: rejected because scheduled notifications require durable relational querying, relational joins with attendees, cancellation on reschedule, and auditable delivery timestamps.
+    - In-transaction external HTTP/SMTP calls: rejected because slow network responses from external mail or push gateways would hold open database row locks and tie up database worker connections.
+    - Blindly cancelling and recreating rows on reschedule: rejected because the unique constraint on `(target_id, user_id, offset, channel)` requires updating existing pending rows to move fire times, preserving idempotency.
+  - Risks and how they are contained:
+    - Worker crash during transmission: contained by the 5-minute stale `SENDING` recovery task returning abandoned rows to `PENDING`.
+    - Expired browser push subscriptions: contained by automatic deletion upon receiving HTTP 404/410 from push services.
+    - Lateness during peak volume: contained by indexed `(status, fire_at_utc)` query and 30-second polling interval bounding lateness to $L_{\text{max}} \le 33\text{s}$.
+
+```mermaid
+flowchart LR
+    EventHook["Event Create / Reschedule"] --> Planner["ReminderPlanner"]
+    Planner --> Rules["ReminderRules & QuietHours"]
+    Rules --> SchedDB[("PostgreSQL: scheduled_notifications")]
+    Beat["Celery Beat (30s)"] --> Claim["SELECT FOR UPDATE SKIP LOCKED"]
+    Claim --> SchedDB
+    Claim --> Dispatcher["ReminderDispatcher"]
+    Dispatcher --> Composite["CompositeNotifier"]
+    Composite --> Email["EmailNotifier (Mailpit / SMTP)"]
+    Composite --> Push["WebPushNotifier (VAPID)"]
+    Dispatcher --> Sent["Mark SENT / Backoff Retry"]
+    Sent --> SchedDB
+```
+
+
 
 

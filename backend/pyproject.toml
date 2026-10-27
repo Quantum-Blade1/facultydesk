@@ -104,6 +104,12 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 
+[[tool.mypy.overrides]]
+module = [
+    "pywebpush.*",
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

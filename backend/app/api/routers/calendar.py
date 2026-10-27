@@ -197,6 +197,7 @@ async def update_calendar_event(
     req: UpdateEventRequest,
     principal: Principal = Depends(get_current_principal),
     uow: UnitOfWork = Depends(get_uow),
+    clock: Clock = Depends(get_clock),
 ) -> CalendarEventResponse:
     """Update or reschedule an event with clash detection."""
     async with uow:
@@ -209,7 +210,7 @@ async def update_calendar_event(
             if profile is None or not any(att.faculty_id == profile.id for att in event.attendees):
                 raise ForbiddenError("Faculty can only update events on their calendar")
 
-        use_case = UpdateEventUseCase(uow)
+        use_case = UpdateEventUseCase(uow, clock)
         try:
             updated = await use_case.execute(
                 event_id=event_id,
@@ -235,6 +236,7 @@ async def cancel_calendar_event(
     reason: str = Query("", description="Cancellation reason"),
     principal: Principal = Depends(get_current_principal),
     uow: UnitOfWork = Depends(get_uow),
+    clock: Clock = Depends(get_clock),
 ) -> None:
     """Cancel and delete an event from the calendar."""
     async with uow:
@@ -248,7 +250,7 @@ async def cancel_calendar_event(
             if profile is None or not any(att.faculty_id == profile.id for att in event.attendees):
                 raise ForbiddenError("Faculty can only cancel events on their calendar")
 
-        use_case = CancelEventUseCase(uow)
+        use_case = CancelEventUseCase(uow, clock)
         await use_case.execute(event_id=event_id, reason=reason)
         await uow.commit()
 

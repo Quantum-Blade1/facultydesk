@@ -32,8 +32,12 @@ from app.domain import (
     NotificationChannel,
     NotificationRepository,
     NotificationStatus,
+    PushSubscription,
+    PushSubscriptionRepository,
     RefreshToken,
     RefreshTokenRepository,
+    ReminderRule,
+    ReminderRuleRepository,
     Role,
     Room,
     RoomRepository,
@@ -63,7 +67,9 @@ from app.infrastructure.db.models import (
     EventModel,
     FacultyProfileModel,
     HolidayModel,
+    PushSubscriptionModel,
     RefreshTokenModel,
+    ReminderRuleModel,
     RoomModel,
     ScheduledNotificationModel,
     SectionModel,
@@ -85,6 +91,8 @@ def user_to_domain(m: UserModel) -> User:
         password_hash=m.password_hash,
         role=Role(m.role),
         is_active=m.is_active,
+        quiet_hours_start=m.quiet_hours_start,
+        quiet_hours_end=m.quiet_hours_end,
     )
 
 
@@ -170,7 +178,28 @@ def notification_to_domain(m: ScheduledNotificationModel) -> ScheduledNotificati
         attempts=m.attempts,
         max_attempts=m.max_attempts,
         last_error=m.last_error,
+        delivered_at_utc=m.delivered_at_utc,
         status=NotificationStatus(m.status),
+    )
+
+
+def reminder_rule_to_domain(m: ReminderRuleModel) -> ReminderRule:
+    return ReminderRule(
+        id=m.id,
+        user_id=m.user_id,
+        event_kind=EventKind(m.event_kind),
+        offsets_minutes=tuple(m.offsets_minutes),
+        channels=tuple(NotificationChannel(c) for c in m.channels),
+    )
+
+
+def push_subscription_to_domain(m: PushSubscriptionModel) -> PushSubscription:
+    return PushSubscription(
+        id=m.id,
+        user_id=m.user_id,
+        endpoint=m.endpoint,
+        p256dh=m.p256dh,
+        auth=m.auth,
     )
 
 
@@ -329,6 +358,8 @@ class UserRepositoryImpl(UserRepository):
                 password_hash=user.password_hash,
                 role=user.role.value,
                 is_active=user.is_active,
+                quiet_hours_start=user.quiet_hours_start,
+                quiet_hours_end=user.quiet_hours_end,
             )
             self._session.add(model)
         else:
@@ -336,6 +367,8 @@ class UserRepositoryImpl(UserRepository):
             model.password_hash = user.password_hash
             model.role = user.role.value
             model.is_active = user.is_active
+            model.quiet_hours_start = user.quiet_hours_start
+            model.quiet_hours_end = user.quiet_hours_end
         await self._session.flush()
         return user_to_domain(model)
 
@@ -682,6 +715,72 @@ class NotificationRepositoryImpl(NotificationRepository):
         result = await self._session.execute(stmt)
         return [notification_to_domain(m) for m in result.scalars().all()]
 
+    async def claim_due_batch(
+        self, up_to_utc: datetime, limit: int
+    ) -> list[ScheduledNotification]:
+        stmt = (
+            select(ScheduledNotificationModel)
+            .where(
+                ScheduledNotificationModel.status == NotificationStatus.PENDING.value,
+                ScheduledNotificationModel.fire_at_utc <= up_to_utc,
+            )
+            .order_by(ScheduledNotificationModel.fire_at_utc.asc())
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self._session.execute(stmt)
+        models = list(result.scalars().all())
+        for m in models:
+            m.status = NotificationStatus.SENDING.value
+            m.attempts += 1
+        await self._session.flush()
+        return [notification_to_domain(m) for m in models]
+
+    async def recover_stale_sending(self, older_than_utc: datetime) -> int:
+        stmt = (
+            update(ScheduledNotificationModel)
+            .where(
+                ScheduledNotificationModel.status == NotificationStatus.SENDING.value,
+                ScheduledNotificationModel.fire_at_utc <= older_than_utc,
+            )
+            .values(status=NotificationStatus.PENDING.value)
+            .returning(ScheduledNotificationModel.id)
+        )
+        result = await self._session.execute(stmt)
+        return len(result.scalars().all())
+
+    async def list_by_user(
+        self, user_id: UUID, status: NotificationStatus | None = None, limit: int = 50
+    ) -> list[ScheduledNotification]:
+        stmt = select(ScheduledNotificationModel).where(
+            ScheduledNotificationModel.user_id == user_id
+        )
+        if status is not None:
+            stmt = stmt.where(ScheduledNotificationModel.status == status.value)
+        stmt = stmt.order_by(ScheduledNotificationModel.fire_at_utc.desc()).limit(limit)
+        result = await self._session.execute(stmt)
+        return [notification_to_domain(m) for m in result.scalars().all()]
+
+    async def list_by_target(self, target_id: UUID) -> list[ScheduledNotification]:
+        stmt = select(ScheduledNotificationModel).where(
+            ScheduledNotificationModel.target_id == target_id
+        )
+        result = await self._session.execute(stmt)
+        return [notification_to_domain(m) for m in result.scalars().all()]
+
+    async def cancel_pending_by_target(self, target_id: UUID) -> int:
+        stmt = (
+            update(ScheduledNotificationModel)
+            .where(
+                ScheduledNotificationModel.target_id == target_id,
+                ScheduledNotificationModel.status == NotificationStatus.PENDING.value,
+            )
+            .values(status=NotificationStatus.CANCELLED.value)
+            .returning(ScheduledNotificationModel.id)
+        )
+        result = await self._session.execute(stmt)
+        return len(result.scalars().all())
+
     async def save(
         self, notification: ScheduledNotification
     ) -> ScheduledNotification:
@@ -698,6 +797,7 @@ class NotificationRepositoryImpl(NotificationRepository):
                 attempts=notification.attempts,
                 max_attempts=notification.max_attempts,
                 last_error=notification.last_error,
+                delivered_at_utc=notification.delivered_at_utc,
                 status=notification.status.value,
             )
             self._session.add(model)
@@ -707,9 +807,100 @@ class NotificationRepositoryImpl(NotificationRepository):
             model.attempts = notification.attempts
             model.max_attempts = notification.max_attempts
             model.last_error = notification.last_error
+            model.delivered_at_utc = notification.delivered_at_utc
             model.status = notification.status.value
         await self._session.flush()
         return notification_to_domain(model)
+
+
+class ReminderRuleRepositoryImpl(ReminderRuleRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_user_and_kind(
+        self, user_id: UUID, event_kind: EventKind
+    ) -> ReminderRule | None:
+        stmt = select(ReminderRuleModel).where(
+            ReminderRuleModel.user_id == user_id,
+            ReminderRuleModel.event_kind == event_kind.value,
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return reminder_rule_to_domain(model) if model else None
+
+    async def list_by_user(self, user_id: UUID) -> list[ReminderRule]:
+        stmt = select(ReminderRuleModel).where(ReminderRuleModel.user_id == user_id)
+        result = await self._session.execute(stmt)
+        return [reminder_rule_to_domain(m) for m in result.scalars().all()]
+
+    async def save(self, rule: ReminderRule) -> ReminderRule:
+        model = await self._session.get(ReminderRuleModel, rule.id)
+        if model is None:
+            model = ReminderRuleModel(
+                id=rule.id,
+                user_id=rule.user_id,
+                event_kind=rule.event_kind.value,
+                offsets_minutes=list(rule.offsets_minutes),
+                channels=[c.value for c in rule.channels],
+            )
+            self._session.add(model)
+        else:
+            model.offsets_minutes = list(rule.offsets_minutes)
+            model.channels = [c.value for c in rule.channels]
+        await self._session.flush()
+        return reminder_rule_to_domain(model)
+
+    async def delete(self, rule_id: UUID) -> None:
+        model = await self._session.get(ReminderRuleModel, rule_id)
+        if model is not None:
+            await self._session.delete(model)
+
+
+class PushSubscriptionRepositoryImpl(PushSubscriptionRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id(self, subscription_id: UUID) -> PushSubscription | None:
+        stmt = select(PushSubscriptionModel).where(PushSubscriptionModel.id == subscription_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return push_subscription_to_domain(model) if model else None
+
+    async def list_by_user(self, user_id: UUID) -> list[PushSubscription]:
+        stmt = select(PushSubscriptionModel).where(PushSubscriptionModel.user_id == user_id)
+        result = await self._session.execute(stmt)
+        return [push_subscription_to_domain(m) for m in result.scalars().all()]
+
+    async def save(self, subscription: PushSubscription) -> PushSubscription:
+        stmt = select(PushSubscriptionModel).where(
+            PushSubscriptionModel.user_id == subscription.user_id,
+            PushSubscriptionModel.endpoint == subscription.endpoint,
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if model is None:
+            model = PushSubscriptionModel(
+                id=subscription.id,
+                user_id=subscription.user_id,
+                endpoint=subscription.endpoint,
+                p256dh=subscription.p256dh,
+                auth=subscription.auth,
+            )
+            self._session.add(model)
+        else:
+            model.p256dh = subscription.p256dh
+            model.auth = subscription.auth
+        await self._session.flush()
+        return push_subscription_to_domain(model)
+
+    async def delete_by_endpoint(self, endpoint: str) -> None:
+        stmt = sa_delete(PushSubscriptionModel).where(PushSubscriptionModel.endpoint == endpoint)
+        await self._session.execute(stmt)
+
+    async def delete(self, subscription_id: UUID) -> None:
+        model = await self._session.get(PushSubscriptionModel, subscription_id)
+        if model is not None:
+            await self._session.delete(model)
 
 
 class TaskRepositoryImpl(TaskRepository):
@@ -1060,6 +1251,8 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.events = EventRepositoryImpl(self._session)
         self.circulars = CircularRepositoryImpl(self._session)
         self.notifications = NotificationRepositoryImpl(self._session)
+        self.reminder_rules = ReminderRuleRepositoryImpl(self._session)
+        self.push_subscriptions = PushSubscriptionRepositoryImpl(self._session)
         self.tasks = TaskRepositoryImpl(self._session)
         self.audit_logs = AuditLogRepositoryImpl(self._session)
         self.refresh_tokens = RefreshTokenRepositoryImpl(self._session)

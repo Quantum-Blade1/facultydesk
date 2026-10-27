@@ -12,7 +12,9 @@ from app.domain.entities import (
     Event,
     FacultyProfile,
     Holiday,
+    PushSubscription,
     RefreshToken,
+    ReminderRule,
     Room,
     ScheduledNotification,
     Section,
@@ -21,7 +23,7 @@ from app.domain.entities import (
     TimetableUpload,
     User,
 )
-from app.domain.value_objects import Initials
+from app.domain.value_objects import EventKind, Initials, NotificationStatus
 
 
 class DepartmentRepository(ABC):
@@ -168,10 +170,76 @@ class NotificationRepository(ABC):
         """List pending notifications due to fire at or before up_to_utc."""
 
     @abstractmethod
+    async def claim_due_batch(
+        self, up_to_utc: datetime, limit: int
+    ) -> list[ScheduledNotification]:
+        """Claim due notifications via SELECT FOR UPDATE SKIP LOCKED, marking them SENDING."""
+
+    @abstractmethod
+    async def recover_stale_sending(self, older_than_utc: datetime) -> int:
+        """Transition notifications stuck in SENDING older than threshold back to PENDING."""
+
+    @abstractmethod
+    async def list_by_user(
+        self, user_id: UUID, status: NotificationStatus | None = None, limit: int = 50
+    ) -> list[ScheduledNotification]:
+        """List notifications for a user."""
+
+    @abstractmethod
+    async def list_by_target(self, target_id: UUID) -> list[ScheduledNotification]:
+        """List all notifications for a target event or task."""
+
+    @abstractmethod
+    async def cancel_pending_by_target(self, target_id: UUID) -> int:
+        """Cancel all pending notifications for a target."""
+
+    @abstractmethod
     async def save(
         self, notification: ScheduledNotification
     ) -> ScheduledNotification:
         """Persist a scheduled notification."""
+
+
+class ReminderRuleRepository(ABC):
+    @abstractmethod
+    async def get_by_user_and_kind(
+        self, user_id: UUID, event_kind: EventKind
+    ) -> ReminderRule | None:
+        """Fetch reminder rule for a user and event kind."""
+
+    @abstractmethod
+    async def list_by_user(self, user_id: UUID) -> list[ReminderRule]:
+        """List all reminder rules for a user."""
+
+    @abstractmethod
+    async def save(self, rule: ReminderRule) -> ReminderRule:
+        """Persist a reminder rule."""
+
+    @abstractmethod
+    async def delete(self, rule_id: UUID) -> None:
+        """Delete a reminder rule."""
+
+
+class PushSubscriptionRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, subscription_id: UUID) -> PushSubscription | None:
+        """Fetch push subscription by ID."""
+
+    @abstractmethod
+    async def list_by_user(self, user_id: UUID) -> list[PushSubscription]:
+        """List all push subscriptions for a user."""
+
+    @abstractmethod
+    async def save(self, subscription: PushSubscription) -> PushSubscription:
+        """Persist a push subscription."""
+
+    @abstractmethod
+    async def delete_by_endpoint(self, endpoint: str) -> None:
+        """Delete push subscription matching endpoint."""
+
+    @abstractmethod
+    async def delete(self, subscription_id: UUID) -> None:
+        """Delete push subscription."""
 
 
 class TaskRepository(ABC):
@@ -302,6 +370,8 @@ class UnitOfWork(ABC):
     events: EventRepository
     circulars: CircularRepository
     notifications: NotificationRepository
+    reminder_rules: ReminderRuleRepository
+    push_subscriptions: PushSubscriptionRepository
     tasks: TaskRepository
     audit_logs: AuditLogRepository
     refresh_tokens: RefreshTokenRepository

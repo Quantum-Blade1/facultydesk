@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate seed lint typecheck test fmt graph diagrams backup restore
+.PHONY: up down logs migrate seed lint typecheck test fmt graph diagrams backup restore vapid-keys
 
 up:
 	docker compose up -d --build
@@ -42,3 +42,7 @@ backup:
 
 restore:
 	docker compose exec -T postgres psql -U facultydesk facultydesk < backup.sql
+
+vapid-keys:
+	@cd backend && uv run python -c 'from pywebpush import Vapid; import base64; from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat; v = Vapid(); v.generate_keys(); raw_pub = v.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint); b64_pub = base64.urlsafe_b64encode(raw_pub).decode().rstrip("="); b64_priv = base64.urlsafe_b64encode(v.private_key.private_numbers().private_value.to_bytes(32, "big")).decode().rstrip("="); print(f"VAPID_PUBLIC_KEY={b64_pub}\nVAPID_PRIVATE_KEY={b64_priv}")'
+

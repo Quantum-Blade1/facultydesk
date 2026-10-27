@@ -38,7 +38,12 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Multi-attendee common free-slot finder detecting non-overlapping working intervals for meeting scheduling.
 - RFC 5545 compliant iCalendar (`.ics`) subscription feed with token gating, automatic token rotation, and stable UIDs (`slot-<slot_id>-<date>@facultydesk.local`).
 - Celery Beat nightly rolling materialisation task automatically advancing the 21-day window at midnight.
-- Docker Compose development and production environments with health checks on all services.
+- Multi-channel notification engine (HTML/text Email via aiosmtplib and WebPush via pywebpush with VAPID) delivering reminders for classes and meetings.
+- Exactly-once reminder delivery guarantees with deterministic SHA-256 idempotency keys, atomic `SELECT FOR UPDATE SKIP LOCKED` batch claiming, and full-jitter exponential backoff retry scheduling.
+- Stale `SENDING` notification worker recovery protecting against worker crashes.
+- Configurable reminder rules per event kind (`CLASS`, `MEETING`, `DEADLINE`) with offsets and channel preferences.
+- User-specific quiet hours window ($Q = [q_s, q_e)$) supporting midnight-crossing windows and emergency morning class start exemptions.
+- Docker Compose development and production environments with health checks on all services including Mailpit SMTP testing server.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
 ## 3. Architecture
@@ -473,6 +478,46 @@ sequenceDiagram
     UC->>UC: Generate VCALENDAR with stable UIDs & PRODID
     UC-->>API: VCALENDAR text/calendar payload
     API-->>Ext: 200 OK text/calendar; charset=utf-8
+```
+
+### 4.10 Reminder Dispatch and Exactly-Once Delivery Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Beat as Celery Beat (Every 30s)
+    participant Worker as Celery Worker
+    participant DB as PostgreSQL
+    participant Dispatcher as ReminderDispatcher
+    participant Notifier as CompositeNotifier
+    participant Ext as Mailpit / WebPush Gateway
+
+    Beat->>Worker: Enqueue dispatch_due_notifications
+    Worker->>Dispatcher: dispatch_due(batch_size=100)
+    Dispatcher->>DB: BEGIN Tx
+    Dispatcher->>DB: SELECT FOR UPDATE SKIP LOCKED (status=PENDING, fire_at_utc <= now, LIMIT 100)
+    Dispatcher->>DB: UPDATE scheduled_notifications SET status='SENDING', attempts=attempts+1
+    Dispatcher->>DB: COMMIT Tx
+    Note over Dispatcher, DB: Batch claimed atomically, lock released, row protected by SENDING state
+
+    loop For each claimed notification
+        Dispatcher->>DB: Fetch user, profile, and event details
+        Dispatcher->>Notifier: send(notification, payload, user, profile)
+        alt Success
+            Notifier->>Ext: Deliver Email (SMTP) or WebPush (VAPID)
+            Ext-->>Notifier: 200 OK / Accepted
+            Notifier-->>Dispatcher: Success
+            Dispatcher->>DB: UPDATE scheduled_notifications SET status='SENT', delivered_at_utc=now()
+        else Failure (e.g. SMTP drop, transient network error)
+            Notifier-->>Dispatcher: Raise Error
+            Dispatcher->>Dispatcher: Compute full-jitter exponential backoff: delay(n)
+            alt attempts < 5
+                Dispatcher->>DB: UPDATE scheduled_notifications SET status='PENDING', fire_at_utc=now()+delay, last_error=err
+            else attempts >= 5
+                Dispatcher->>DB: UPDATE scheduled_notifications SET status='FAILED', last_error=err
+            end
+        end
+    end
 ```
 
 ## 5. How to run, test and deploy

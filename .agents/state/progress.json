@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "06",
+  "current_stage": "07",
   "stages": [
     {
       "id": "01",
@@ -153,12 +153,31 @@
     {
       "id": "06",
       "file": "06-reminder-engine.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T19:33:00+05:30",
+      "finished_at": "2026-10-27T20:05:00+05:30",
+      "commit": "8e4f79f",
+      "tasks": [
+        "specify fire time, idempotency key, quiet hours shift, and backoff jitter in docs/MATHS.md",
+        "create reminder rules, quiet hours, push subscriptions, and scheduled notifications database schema and migration",
+        "implement Notifier strategy with WebPushNotifier and EmailNotifier using Mailpit",
+        "implement ReminderPlanner service for event/task lifecycle changes and idempotency keys",
+        "implement ReminderDispatcher with SELECT FOR UPDATE SKIP LOCKED batch claiming and stale SENDING recovery",
+        "wire Celery beat tasks for 30s dispatch and 5m stale recovery",
+        "wire /api/reminders and /api/notifications endpoints",
+        "write mathematical property tests for idempotency, backoff bounds, quiet hours shift across midnight, and dispatch concurrency",
+        "update docs/PROJECT.md and docs/DECISIONS.md with sequence diagrams"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 99 source files; 52 passed in 4.83s",
+        "alembic upgrade head -> Reversible migration 1c007141bd6c_reminder_rules_quiet_hours_and_delivery applied cleanly",
+        "test_concurrency_dispatcher_skip_locked -> Two parallel dispatchers over 500 due rows dispatched each exactly once with zero duplicate sends",
+        "test_planning_idempotency_property -> Re-running planning produces identical rows with no duplicate keys",
+        "test_reschedule_and_cancel_lifecycle -> Rescheduling moves fire time forward, cancelling marks all reminders CANCELLED",
+        "test_mailpit_real_delivery -> Email sent to Mailpit on localhost:1025 and retrieved via API on localhost:8025 with correct HTML and plain text",
+        "Live verification script verify_stage_06.py -> Meeting 12m from now with 10m offset dispatched and received in Mailpit with lateness 1.00s <= 33s bound",
+        "docs/diagrams/reminder_dispatch_sequence.svg and stage_06_decisions.svg rendered and verified"
+      ]
     },
     {
       "id": "07",
@@ -228,6 +247,8 @@
     "Added allowBuilds for unrs-resolver in frontend/pnpm-workspace.yaml due to pnpm v12 strict build policy.",
     "Used standard property on Settings.DATABASE_URL without computed_field to satisfy strict mypy with zero type ignores.",
     "Used python-multipart for FastAPI file and form boundary parsing in bulk faculty and holiday imports.",
-    "Used string email representation in API schemas with application/domain validation to avoid adding email-validator dependency."
+    "Used string email representation in API schemas with application/domain validation to avoid adding email-validator dependency.",
+    "Added Mailpit (axllent/mailpit:latest) container to docker-compose.yml on ports 1025 (SMTP) and 8025 (HTTP) for local zero-credential email verification.",
+    "Added vapid-keys make target to generate deterministic dev VAPID keys for WebPush in .env without external services."
   ]
 }
