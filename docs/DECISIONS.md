@@ -282,8 +282,68 @@ flowchart LR
     Confirm --> Calendar["Calendar Event (MEETING)"]
     Calendar --> Reminders["Scheduled Notifications (Stage 06)"]
 ```
+- **Stage 08: Documentation tasks, priority scoring and escalating alerts**
+  - What we built:
+    - Reversible migration adding `category`, `parent_assignment_id`, and `recurrence` to `tasks`, and creating `task_templates` table.
+    - Transparent continuous priority score function $P(I, h, d_{\text{overdue}})$ bounded in $[0, 1]$ before deadline and growing linearly above $1.0$ when overdue, with priority sorting.
+    - Multi-stage alert scheduler $\mathcal{A}_{\text{lead}} = \{D-72\text{h}, D-24\text{h}, D-2\text{h}\} \cap (t_{\text{created}}, D)$, daily overdue alerts (09:00 IST), and 24h HOD escalation summaries (09:30 IST) with deterministic idempotency keys.
+    - Two-way calendar synchronization materialising all tasks with deadlines as zero-duration `DEADLINE` events (`source=TASK, source_id=task.id`) on faculty calendars, with automatic updates and deletion upon task completion or removal.
+    - Bulk HOD assignment use case (`POST /api/tasks/assign`) tracking individual faculty task clones under a shared `parent_assignment_id`.
+    - HOD department dashboard (`GET /api/tasks/hod-dashboard`) computing aggregate and per-faculty completion metrics ($\frac{N_{\text{completed}}}{N_{\text{total}}} \times 100\%$) and overdue tallies.
+    - Seeded standard academic documentation templates (CO-PO mapping, IA marks upload, attendance shortage report, lab manual update, course file submission).
+    - Celery Beat schedule for daily overdue alerts (09:00 IST) and HOD escalation digests (09:30 IST).
+  - Why this way:
+    - Normalising priority $P \in [0, 1]$ for active tasks provides an intuitive, scale-independent metric where overdue tasks strictly dominate active tasks ($P > 1.0$), ensuring immediate sorting attention without arbitrary weighting hacks.
+    - Cloned task rows with `parent_assignment_id` preserve faculty autonomy: each faculty member can complete or annotate their copy independently, while allowing HODs to track aggregate progress across the cohort.
+    - Synchronising tasks to the `events` table with `type=DEADLINE` unifies calendar views, ics feeds, and clash visibility without needing complex cross-table unions in frontend calendars.
+  - What we rejected and why:
+    - Single shared task row with many-to-many assignee join table: rejected because faculty members complete paperwork at different times; individual task rows allow fine-grained state transitions, personal notes, and isolated notification lifecycles.
+    - Complex non-linear neural or heuristic priority scoring: rejected in favor of a strictly monotonic, explainable mathematical formula documented in `MATHS.md` with provable bounds.
+    - Instant HOD notification on the minute of overdue: rejected because barrage alerting causes notification fatigue; batching overdue escalations into a single morning digest at 09:30 IST respects administrative focus.
+  - Risks and how they are contained:
+    - Idempotency key collision on reopened tasks: contained by appending `:reopen:{timestamp}` to newly scheduled alert keys when previously cancelled notifications exist.
+    - Division by zero in completion rate metrics: contained by returning $0.0\%$ when total assigned tasks equals zero.
 
+```mermaid
+flowchart TD
+    subgraph Input["HOD / Faculty Inputs"]
+        Assign["HOD Bulk Assignment"]
+        Create["Faculty Own Task"]
+        Tpl["Pre-filled Templates<br/>(CO-PO, IA, Attendance, Lab)"]
+    end
 
+    subgraph Core["Domain & Application Core"]
+        PScore["Priority Score P(I, h, d_overdue)<br/>P in [0, 1] active, > 1.0 overdue"]
+        Plan["Alert Scheduler<br/>A = {D-72h, D-24h, D-2h}"]
+        Overdue["Daily Overdue Alert (09:00 IST)"]
+        Escalate["24h HOD Escalation Summary (09:30 IST)"]
+    end
 
+    subgraph Persistence["Storage & Calendar Sync"]
+        TaskDB[("tasks Table<br/>parent_assignment_id")]
+        CalSync["DEADLINE Event on Calendar<br/>source=TASK, source_id=task.id"]
+        NotifDB[("scheduled_notifications<br/>idempotency_key")]
+    end
+
+    subgraph Output["Faculty & HOD Outputs"]
+        RankedList["Tasks Sorted Descending by P"]
+        Dash["HOD Dashboard<br/>Completion Rate & Overdue Counts"]
+        EmailPush["Email / Push Delivery Exactly-Once"]
+    end
+
+    Assign --> Plan
+    Create --> Plan
+    Tpl --> Assign
+    Plan --> NotifDB
+    Assign --> TaskDB
+    Create --> TaskDB
+    TaskDB --> CalSync
+    TaskDB --> PScore
+    PScore --> RankedList
+    NotifDB --> EmailPush
+    Overdue --> NotifDB
+    Escalate --> NotifDB
+    TaskDB --> Dash
+```
 
 

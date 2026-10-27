@@ -1,17 +1,17 @@
-# Graph Report - facultydesk  (2026-10-27)
+# Graph Report - facultydesk  (2026-10-28)
 
 ## Corpus Check
-- 201 files · ~160,672 words
+- 209 files · ~173,781 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 19 file(s) not represented in the graph (top: (none) 10, .csv 2, .example 1)
 
 ## Summary
-- 1968 nodes · 5234 edges · 140 communities (105 shown, 35 thin omitted)
-- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 611 edges (avg confidence: 0.93)
+- 2121 nodes · 6026 edges · 136 communities (106 shown, 30 thin omitted)
+- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 969 edges (avg confidence: 0.93)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ce2af82a`
+- Built from commit: `ffbe20b6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,18 +19,18 @@
 - datetime
 - server.cjs
 - Department
-- main.py
-- circular_tasks.py
-- domain/__init__.py
-- directory.py
-- User
+- test_calendar_full_pipeline
+- SqlAlchemyUnitOfWork
+- UUID
+- FacultyProfile
+- Initials
 - db/repositories.py
 - sqlalchemy
 - timetable.py
 - Test-Driven Development (TDD)
 - calendar.py
 - auth.py
-- main.py
+- logging.py
 - UnitOfWork
 - Principal
 - package.json
@@ -43,20 +43,20 @@
 - Circular
 - TimetableSlot
 - ReminderRule
-- Event
+- calendar/use_cases.py
 - extractor.py
-- get_settings
+- tasks.py
 - Systematic Debugging
 - RefreshToken
 - components.json
-- Condition-Based Waiting
+- domain/__init__.py
 - ScheduledNotification
 - AsyncSession
 - ScheduledNotification
 - Root Cause Tracing
 - reminder_tasks.py
-- Course
-- Room
+- tasks/use_cases.py
+- InvariantViolation
 - domain/__init__.py
 - Root Cause Tracing
 - Defense-in-Depth Validation
@@ -64,28 +64,28 @@
 - devDependencies
 - Brainstorming
 - Department
-- entities.py
+- circulars/use_cases.py
 - Section
 - zoneinfo
 - FacultyDesk Agent Contract
-- Verification Before Completion
+- Task
 - Course
 - scripts
 - helper.js
 - Brainstorming
 - Section
-- TimetableUpload
+- Circular
 - Web Application Testing
 - Stage 05: Calendar core, recurrence, clash detection, ICS feed
 - NotificationRepositoryImpl
-- Stage 01: Foundation, environment, Graphify, trusted skills
+- reminders/use_cases.py
 - RedisSlidingWindowRateLimiter
 - with_server.py
 - FacultyDesk Agent Contract
 - Trusted External Skills
 - stop-server.sh
 - helper.js
-- timetable_tasks.py
+- compute_priority_score
 - Stage 02: Domain model and persistence (OOAD core)
 - Graphify Protocol
 - Stage 03: Authentication, roles and faculty directory
@@ -95,7 +95,7 @@
 - stop-server.sh
 - Build Loop
 - Stage 06: Reminder engine with exactly-once delivery
-- test_circular_full_pipeline_with_samples
+- TaskTemplateRepository
 - ._transition
 - Stage 05: Calendar core, recurrence, clash detection, ICS feed
 - Stage 06: Reminder engine with exactly-once delivery
@@ -105,7 +105,7 @@
 - Frontend Engineer
 - Math Verifier
 - Orchestrator
-- Reviewer
+- confirm_timetable
 - Graphify Protocol
 - Slop Review
 - Pressure Test 1: Emergency Production Fix
@@ -122,132 +122,127 @@
 - frontend/README.md
 - Kickoff prompt (paste this into the Antigravity agent)
 - start-server.sh
-- TimeSlot
+- delete_task
 - builder-check-prompt.md
 - task-done
 - Kickoff prompt (paste this into the Antigravity agent)
 - ooad-diagrams/SKILL.md
-- 1.3 State Machine Transition Algebras
+- AuditLogRepository
 - test-academic.md
 - api/__init__.py
 - application/__init__.py
 - find-polluter.sh
 - infrastructure/__init__.py
 - seed/__init__.py
+- DomainError
+- main.py
 - facultydesk-backend
+- FacultyProfileRepository
 
 ## God Nodes (most connected - your core abstractions)
-1. `UnitOfWork` - 148 edges
-2. `Principal` - 79 edges
-3. `Clock` - 76 edges
-4. `FacultyProfile` - 70 edges
-5. `ScheduledNotification` - 61 edges
-6. `User` - 56 edges
-7. `Event` - 55 edges
-8. `Initials` - 44 edges
-9. `SqlAlchemyUnitOfWork` - 42 edges
-10. `NotFoundError` - 39 edges
+1. `UnitOfWork` - 177 edges
+2. `Clock` - 108 edges
+3. `Principal` - 92 edges
+4. `FacultyProfile` - 77 edges
+5. `ScheduledNotification` - 75 edges
+6. `Event` - 69 edges
+7. `User` - 64 edges
+8. `NotFoundError` - 56 edges
+9. `InvariantViolation` - 51 edges
+10. `Initials` - 49 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `2.3 Multi-Attendee Common Free-Slot Finder` --references--> `test_free_slots_never_intersect_busy_property()`  [INFERRED]
-  docs/MATHS.md → backend/tests/unit/test_free_slots.py
-- `5.1 Initials Value Object Invariant` --references--> `InvariantViolation`  [INFERRED]
-  docs/MATHS.md → backend/app/domain/errors.py
-- `5.4 Merged-Cell Period Expansion` --references--> `TimetableSlot`  [INFERRED]
-  docs/MATHS.md → backend/app/domain/entities.py
 - `10.2 Role-Based Access Control (RBAC) Ownership Policy Matrix` --references--> `AuthorisationPolicy`  [INFERRED]
   docs/MATHS.md → backend/app/application/security/policy.py
-- `10.3 Sliding Window Log Rate Limiting` --references--> `test_sliding_window_rate_limiter()`  [INFERRED]
-  docs/MATHS.md → backend/tests/integration/test_rate_limiter.py
+- `Standards you are held to` --references--> `Clock`  [INFERRED]
+  .agents/agents/backend-engineer.md → backend/app/core/clock.py
+- `Non-negotiables` --references--> `Clock`  [INFERRED]
+  AGENTS.md → backend/app/core/clock.py
+- `5.4 Merged-Cell Period Expansion` --references--> `TimetableSlot`  [INFERRED]
+  docs/MATHS.md → backend/app/domain/entities.py
+- `5.1 Initials Value Object Invariant` --references--> `InvariantViolation`  [INFERRED]
+  docs/MATHS.md → backend/app/domain/errors.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (140 total, 35 thin omitted)
+## Communities (136 total, 30 thin omitted)
 
 ### Community 0 - "datetime"
-Cohesion: 0.09
-Nodes (37): OCR and Parsing Engineer, Responsibilities, Rules, split_co_teachers(), tokenize_cell(), CsvTimetableParser, _get_col(), _parse_clock_time() (+29 more)
+Cohesion: 0.10
+Nodes (32): OCR and Parsing Engineer, Responsibilities, Rules, split_co_teachers(), tokenize_cell(), CsvTimetableParser, _get_col(), _parse_clock_time() (+24 more)
 
 ### Community 1 - "server.cjs"
 Cohesion: 0.05
 Nodes (57): bootstrapPage(), brandMarkup(), broadcast(), browserLauncherForPlatform(), chmodOwnerOnly(), clients, companionUrl(), computeAcceptKey() (+49 more)
 
 ### Community 2 - "Department"
-Cohesion: 0.21
-Nodes (5): Department, DepartmentRepository, department_to_domain(), DepartmentRepositoryImpl, Stage 02: Domain model and persistence (OOAD core)
+Cohesion: 0.20
+Nodes (3): Department, department_to_domain(), DepartmentRepositoryImpl
 
-### Community 3 - "main.py"
-Cohesion: 0.11
-Nodes (14): CancelEventUseCase, CheckClashesUseCase, CreateEventUseCase, FindFreeSlotsUseCase, GenerateIcsFeedUseCase, GetCalendarEventsUseCase, RotateIcsTokenUseCase, UpdateEventUseCase (+6 more)
+### Community 3 - "test_calendar_full_pipeline"
+Cohesion: 0.17
+Nodes (12): cancel_calendar_event(), CancelEventUseCase, CheckClashesUseCase, MaterialiseTimetableEventsUseCase, RotateIcsTokenUseCase, UpdateEventUseCase, ReminderPlanner, ClashDetectedError (+4 more)
 
-### Community 4 - "circular_tasks.py"
-Cohesion: 0.18
-Nodes (7): ProcessCircularUseCase, materialise_all_timetable_events(), materialise_timetable_upload(), _run_materialisation(), ping(), process_circular_upload(), _run_process_circular()
+### Community 4 - "SqlAlchemyUnitOfWork"
+Cohesion: 0.09
+Nodes (21): do_run_migrations(), run_async_migrations(), run_migrations_offline(), run_migrations_online(), SystemClock, get_settings(), Settings, SqlAlchemyUnitOfWork (+13 more)
 
-### Community 5 - "domain/__init__.py"
-Cohesion: 0.04
-Nodes (12): AcademicTermRepository, AuditLogRepository, CircularRepository, EventRepository, FacultyProfileRepository, NotificationRepository, PushSubscriptionRepository, RefreshTokenRepository (+4 more)
+### Community 6 - "FacultyProfile"
+Cohesion: 0.10
+Nodes (17): ReminderDispatcher, FacultyProfile, User, CircularRepository, DepartmentRepository, UserRepository, NotificationChannel, NotificationPayload (+9 more)
 
-### Community 6 - "directory.py"
-Cohesion: 0.13
-Nodes (6): ReminderDispatcher, FacultyProfile, NotificationPayload, Notifier, CompositeNotifier, WebPushNotifier
-
-### Community 7 - "User"
-Cohesion: 0.13
-Nodes (11): User, Initials, SqlAlchemyUnitOfWork, main(), seed_database(), ConcurrentMockNotifier, test_concurrency_dispatcher_skip_locked(), test_planning_idempotency_property() (+3 more)
+### Community 7 - "Initials"
+Cohesion: 0.28
+Nodes (5): BulkImportFacultyUseCase, BulkImportReport, RowImportResult, Initials, test_bulk_import_from_sample_csv()
 
 ### Community 8 - "db/repositories.py"
 Cohesion: 0.14
-Nodes (25): Base, AcademicTermModel, AuditLogModel, CircularModel, CourseModel, DepartmentModel, EventAttendeeModel, EventModel (+17 more)
+Nodes (25): Base, get_db(), AcademicTermModel, AuditLogModel, CircularModel, CourseModel, DepartmentModel, EventAttendeeModel (+17 more)
 
 ### Community 9 - "sqlalchemy"
-Cohesion: 0.14
-Nodes (6): upgrade(), upgrade(), upgrade(), upgrade(), cleanup_db_connections(), sample_dir()
+Cohesion: 0.10
+Nodes (14): upgrade(), upgrade(), upgrade(), upgrade(), upgrade(), Interval, intervals_overlap(), pairwise_clashes() (+6 more)
 
 ### Community 10 - "timetable.py"
-Cohesion: 0.10
-Nodes (18): get_storage(), confirm_timetable(), ConfirmTimetableResponse, get_faculty_slots(), get_timetable_upload(), TimetableSlotResponse, TimetableUploadDetailResponse, upload_timetable() (+10 more)
+Cohesion: 0.15
+Nodes (8): get_storage(), upload_timetable(), ConfirmTimetableUseCase, ParseTimetableUseCase, UploadTimetableUseCase, get_storage_service(), MinioStorageService, test_timetable_upload_parse_and_confirm_pipeline()
 
 ### Community 11 - "Test-Driven Development (TDD)"
-Cohesion: 0.15
-Nodes (18): BulkImportFacultyUseCase, BulkImportReport, RowImportResult, CreateFacultyUseCase, DeactivateFacultyUseCase, ManageTermsUseCase, UpdateFacultyUseCase, AuthorisationPolicy (+10 more)
+Cohesion: 0.19
+Nodes (16): CreateFacultyUseCase, DeactivateFacultyUseCase, ManageTermsUseCase, UpdateFacultyUseCase, AuthorisationPolicy, Principal, ConflictError, FacultyDeskError (+8 more)
 
 ### Community 12 - "calendar.py"
-Cohesion: 0.09
-Nodes (14): CalendarEventResponse, cancel_calendar_event(), check_event_clashes(), CheckClashesRequest, create_calendar_event(), CreateEventRequest, EventAttendeeResponse, find_common_free_slots() (+6 more)
+Cohesion: 0.11
+Nodes (15): CalendarEventResponse, check_event_clashes(), CheckClashesRequest, create_calendar_event(), CreateEventRequest, EventAttendeeResponse, find_common_free_slots(), FindFreeSlotsRequest (+7 more)
 
 ### Community 13 - "auth.py"
 Cohesion: 0.08
-Nodes (30): get_clock(), get_current_principal(), get_uow(), require_admin(), require_hod_or_admin(), AcademicTermResponse, add_holiday(), bulk_import_faculty() (+22 more)
+Nodes (28): get_clock(), get_current_principal(), get_uow(), require_admin(), require_hod_or_admin(), AcademicTermResponse, add_holiday(), bulk_import_faculty() (+20 more)
 
-### Community 14 - "main.py"
-Cohesion: 0.09
-Nodes (6): configure_logging(), RequestIdMiddleware, domain_exception_handler(), healthz(), lifespan(), readyz()
-
-### Community 15 - "UnitOfWork"
-Cohesion: 0.11
-Nodes (3): get_ics_feed(), Clock, UnitOfWork
+### Community 14 - "logging.py"
+Cohesion: 0.16
+Nodes (3): configure_logging(), RequestIdMiddleware, lifespan()
 
 ### Community 16 - "Principal"
-Cohesion: 0.08
-Nodes (31): Interval, intervals_overlap(), pairwise_clashes(), SweepLineClashDetector, test_adjacent_intervals_no_clash(), test_sweep_line_clash_detection_matches_pairwise_property(), test_worked_example_from_maths_md(), test_meeting_time_grammar_table() (+23 more)
+Cohesion: 0.06
+Nodes (31): 10.1 Token Lifetimes, Rotation, and Family Reuse Detection, 10.2 Role-Based Access Control (RBAC) Ownership Policy Matrix, 10.3 Sliding Window Log Rate Limiting, 10. Security Limits, 1.2 Half-Open Interval Invariant and Overlap Arithmetic, 1. Time and Recurrence, 2.1 Half-Open Overlap Predicate, 2.3 Multi-Attendee Common Free-Slot Finder (+23 more)
 
 ### Community 17 - "package.json"
-Cohesion: 0.18
+Cohesion: 0.15
 Nodes (16): ChangePasswordUseCase, LoginResult, LoginUseCase, LogoutUseCase, RefreshResult, RefreshTokenUseCase, UnauthorizedError, create_access_token() (+8 more)
 
 ### Community 18 - "reminders.py"
 Cohesion: 0.13
-Nodes (6): faculty_profile_to_domain(), FacultyProfileRepositoryImpl, notification_to_domain(), NotificationRepositoryImpl, timetable_slot_to_domain(), TimetableSlotRepositoryImpl
+Nodes (5): EventRepositoryImpl, faculty_profile_to_domain(), FacultyProfileRepositoryImpl, timetable_slot_to_domain(), TimetableSlotRepositoryImpl
 
 ### Community 19 - "Test-Driven Development (TDD)"
 Cohesion: 0.06
 Nodes (29): Common Rationalizations, Debugging Integration, Example: Bug Fix, Final Rule, Good Tests, GREEN - Minimal Code, Overview, Red Flags - STOP and Start Over (+21 more)
 
 ### Community 20 - "reminders.py"
-Cohesion: 0.07
-Nodes (22): delete_push_subscription(), DeletePushSubscriptionRequest, get_quiet_hours(), get_reminder_rules(), get_upcoming_notifications(), PushSubscriptionRequest, PushSubscriptionResponse, QuietHoursResponse (+14 more)
+Cohesion: 0.11
+Nodes (15): delete_push_subscription(), DeletePushSubscriptionRequest, get_quiet_hours(), get_reminder_rules(), get_upcoming_notifications(), PushSubscriptionRequest, PushSubscriptionResponse, QuietHoursResponse (+7 more)
 
 ### Community 21 - "Executing Plans"
 Cohesion: 0.18
@@ -262,28 +257,28 @@ Cohesion: 0.09
 Nodes (20): 1. Take the task, 2. Work the steps, 3. The completion contract, 4. Complete the task, Common Rationalizations, Executing Plans, Final Review, Finish (+12 more)
 
 ### Community 24 - "Circular"
-Cohesion: 0.05
-Nodes (21): CircularDetailResponse, CircularUploadResponse, confirm_circular(), ConfirmCircularRequest, ConfirmCircularResponse, get_circular(), list_review_queue(), reject_circular() (+13 more)
+Cohesion: 0.11
+Nodes (14): CircularDetailResponse, CircularUploadResponse, confirm_circular(), ConfirmCircularRequest, ConfirmCircularResponse, get_circular(), list_review_queue(), reject_circular() (+6 more)
 
 ### Community 25 - "TimetableSlot"
-Cohesion: 0.24
-Nodes (7): expand_slot_recurrence(), AcademicTerm, TimetableSlot, test_recurrence_expansion_matching_weekday(), test_recurrence_expansion_skips_holidays(), test_recurrence_expansion_utc_roundtrip(), 1.4 Recurrence Expansion and Rolling 21-Day Materialisation Window
+Cohesion: 0.28
+Nodes (8): expand_slot_recurrence(), TimetableSlot, TimeSlot, test_timeslot_half_open_overlap(), test_recurrence_expansion_matching_weekday(), test_recurrence_expansion_skips_holidays(), test_recurrence_expansion_utc_roundtrip(), 1.4 Recurrence Expansion and Rolling 21-Day Materialisation Window
 
 ### Community 26 - "ReminderRule"
-Cohesion: 0.36
-Nodes (3): ReminderRule, reminder_rule_to_domain(), ReminderRuleRepositoryImpl
+Cohesion: 0.20
+Nodes (4): ReminderRule, ReminderRuleRepository, reminder_rule_to_domain(), ReminderRuleRepositoryImpl
 
-### Community 27 - "Event"
-Cohesion: 0.17
-Nodes (8): generate_vcalendar_ics(), MaterialiseTimetableEventsUseCase, ReminderPlanner, Event, event_to_domain(), test_ics_export_stable_uids(), test_ics_export_valid_rfc5545(), 2.4 RFC 5545 ICS Feed Specification
+### Community 27 - "calendar/use_cases.py"
+Cohesion: 0.32
+Nodes (7): generate_vcalendar_ics(), EventKind, EventSource, test_ics_export_stable_uids(), test_ics_export_valid_rfc5545(), test_duplicate_predicate_worked_example(), 2.4 RFC 5545 ICS Feed Specification
 
 ### Community 28 - "extractor.py"
 Cohesion: 0.06
-Nodes (35): compute_length_weighted_confidence(), OcrEngine, OcrResult, WordBox, CircularExtractor, ExtractedAttendee, ExtractedTime, ExtractionResult (+27 more)
+Nodes (38): detect_probable_duplicate(), normalize_title(), compute_length_weighted_confidence(), OcrEngine, OcrResult, WordBox, CircularExtractor, ExtractedAttendee (+30 more)
 
-### Community 29 - "get_settings"
-Cohesion: 0.16
-Nodes (7): do_run_migrations(), run_async_migrations(), run_migrations_offline(), run_migrations_online(), get_settings(), Settings, get_db()
+### Community 29 - "tasks.py"
+Cohesion: 0.12
+Nodes (18): assign_task(), AssignmentProgressResponse, AssignTaskRequest, complete_task(), create_task(), CreateTaskRequest, ensure_utc(), FacultyOverdueSummaryResponse (+10 more)
 
 ### Community 30 - "Systematic Debugging"
 Cohesion: 0.10
@@ -297,33 +292,37 @@ Nodes (19): Bulletproofing Elements, Creation Log: Systematic Debugging Skill, E
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+11 more)
 
-### Community 33 - "Condition-Based Waiting"
-Cohesion: 0.41
-Nodes (10): DomainEvent, EventCancelled, EventRescheduled, EventScheduled, TaskCreated, TaskDeadlineChanged, TimetableConfirmed, Domain (backend/app/domain) (+2 more)
+### Community 33 - "domain/__init__.py"
+Cohesion: 0.19
+Nodes (18): Event, EventAttendee, DomainEvent, EventCancelled, EventRescheduled, EventScheduled, TaskCreated, TaskDeadlineChanged (+10 more)
 
 ### Community 34 - "ScheduledNotification"
-Cohesion: 0.20
-Nodes (3): ScheduledNotification, EmailNotifier, test_mailpit_real_delivery()
+Cohesion: 0.11
+Nodes (5): ScheduledNotification, NotificationRepository, NotificationStatus, notification_to_domain(), NotificationRepositoryImpl
 
 ### Community 36 - "ScheduledNotification"
 Cohesion: 0.10
-Nodes (19): 1. Problem and users, 3. Architecture, 4.10 Reminder Dispatch and Exactly-Once Delivery Sequence, 4.11 Meeting Circular Scanning, Extraction, and Review Sequence, 4.1 Component Diagram, 4.2 Domain Class Diagram, 4.3 Circular State Machine, 4.4 ScheduledNotification State Machine (+11 more)
+Nodes (20): 1. Problem and users, 3. Architecture, 4.10 Reminder Dispatch and Exactly-Once Delivery Sequence, 4.11 Meeting Circular Scanning, Extraction, and Review Sequence, 4.11 Task Assignment, Alert Lifecycle and Escalation Sequence, 4.1 Component Diagram, 4.2 Domain Class Diagram, 4.3 Circular State Machine (+12 more)
 
 ### Community 37 - "Root Cause Tracing"
-Cohesion: 0.21
-Nodes (10): adjust_for_quiet_hours(), compute_backoff_delay(), compute_fire_time(), compute_idempotency_key(), QuietHours, test_quiet_hours_midnight_crossing(), test_backoff_bounds(), test_fire_time_computation() (+2 more)
+Cohesion: 0.18
+Nodes (11): adjust_for_quiet_hours(), compute_backoff_delay(), compute_fire_time(), compute_idempotency_key(), GetUserQuietHoursUseCase, QuietHours, test_quiet_hours_midnight_crossing(), test_backoff_bounds() (+3 more)
 
 ### Community 38 - "reminder_tasks.py"
-Cohesion: 0.21
-Nodes (8): _build_dispatcher(), dispatch_due_notifications(), recover_stale_sending_notifications(), _run_dispatch(), _run_recover(), FacultyDesk Decisions, Stage 00: Agent setup, Stage 03: Authentication, authorization, and faculty directory
+Cohesion: 0.19
+Nodes (9): _build_dispatcher(), dispatch_due_notifications(), recover_stale_sending_notifications(), _run_dispatch(), _run_recover(), FacultyDesk Decisions, Stage 00: Agent setup, Stage 01: Foundation, environment, Graphify, trusted skills (+1 more)
 
-### Community 39 - "Course"
-Cohesion: 0.20
-Nodes (4): Holiday, academic_term_to_domain(), AcademicTermRepositoryImpl, holiday_to_domain()
+### Community 39 - "tasks/use_cases.py"
+Cohesion: 0.13
+Nodes (22): compute_completion_rate(), AssignmentProgress, AssignTaskUseCase, CompleteTaskUseCase, CreateTaskUseCase, FacultyOverdueSummary, GetHodDashboardUseCase, HodDashboardData (+14 more)
+
+### Community 40 - "InvariantViolation"
+Cohesion: 0.09
+Nodes (7): AcademicTerm, Holiday, InvariantViolation, AcademicTermRepository, academic_term_to_domain(), AcademicTermRepositoryImpl, holiday_to_domain()
 
 ### Community 41 - "domain/__init__.py"
-Cohesion: 0.28
-Nodes (8): test_circular_state_machine_exhaustive(), test_event_invariants(), test_initials_invalid_property(), test_initials_valid_property(), test_notification_state_machine_exhaustive(), test_task_invariants(), test_timeslot_invariants(), ScheduledNotification State Machine
+Cohesion: 0.31
+Nodes (6): test_event_invariants(), test_initials_invalid_property(), test_initials_valid_property(), test_notification_state_machine_exhaustive(), test_task_invariants(), test_timeslot_invariants()
 
 ### Community 42 - "Root Cause Tracing"
 Cohesion: 0.12
@@ -334,8 +333,8 @@ Cohesion: 0.12
 Nodes (15): Common Rationalizations, Overview, Phase 1: Root Cause Investigation, Phase 2: Pattern Analysis, Phase 3: Hypothesis and Testing, Phase 4: Implementation, Quick Reference, Red Flags - STOP and Follow Process (+7 more)
 
 ### Community 44 - "PushSubscription"
-Cohesion: 0.22
-Nodes (3): PushSubscription, push_subscription_to_domain(), PushSubscriptionRepositoryImpl
+Cohesion: 0.13
+Nodes (4): PushSubscription, PushSubscriptionRepository, push_subscription_to_domain(), PushSubscriptionRepositoryImpl
 
 ### Community 45 - "devDependencies"
 Cohesion: 0.12
@@ -346,27 +345,27 @@ Cohesion: 0.15
 Nodes (12): Common Mistakes, Condition-Based Waiting, Core Pattern, waitForEvent(), waitForEventCount(), waitForEventMatch(), Implementation, Overview (+4 more)
 
 ### Community 47 - "Department"
-Cohesion: 0.25
-Nodes (5): FrozenClock, test_clock_always_returns_utc_property(), test_frozen_clock_advance_property(), test_frozen_clock_rejects_naive_datetime(), 1.1 Canonical Time Representation and Clock Invariant
-
-### Community 48 - "entities.py"
 Cohesion: 0.18
-Nodes (12): ConfirmCircularUseCase, UploadCircularUseCase, AttendeeResponse, CircularStatus, EventKind, EventSource, NotificationChannel, NotificationStatus (+4 more)
+Nodes (9): FrozenClock, test_clock_always_returns_utc_property(), test_frozen_clock_advance_property(), test_frozen_clock_rejects_naive_datetime(), 1.1 Canonical Time Representation and Clock Invariant, Acceptance criteria, Goal, Stage 01: Foundation, environment, Graphify, trusted skills (+1 more)
+
+### Community 48 - "circulars/use_cases.py"
+Cohesion: 0.17
+Nodes (7): CreateEventUseCase, GetCalendarEventsUseCase, ConfirmCircularUseCase, ProcessCircularUseCase, InMemoryStorageService, sample_dir(), test_circular_full_pipeline_with_samples()
 
 ### Community 49 - "Section"
 Cohesion: 0.13
 Nodes (15): dependencies, clsx, @fullcalendar/core, @fullcalendar/daygrid, @fullcalendar/react, @fullcalendar/timegrid, @hookform/resolvers, lucide-react (+7 more)
 
 ### Community 50 - "zoneinfo"
-Cohesion: 0.29
-Nodes (5): BusyInterval, FreeSlotFinder, merge_busy_intervals(), test_free_slots_never_intersect_busy_property(), test_free_slots_worked_example()
+Cohesion: 0.24
+Nodes (6): BusyInterval, FreeSlotFinder, merge_busy_intervals(), FindFreeSlotsUseCase, test_free_slots_never_intersect_busy_property(), test_free_slots_worked_example()
 
 ### Community 51 - "FacultyDesk Agent Contract"
-Cohesion: 0.18
-Nodes (3): RefreshToken, refresh_token_to_domain(), RefreshTokenRepositoryImpl
+Cohesion: 0.14
+Nodes (4): RefreshToken, RefreshTokenRepository, refresh_token_to_domain(), RefreshTokenRepositoryImpl
 
-### Community 52 - "Verification Before Completion"
-Cohesion: 0.25
+### Community 52 - "Task"
+Cohesion: 0.16
 Nodes (5): Task, TaskRepository, TaskStatus, task_to_domain(), TaskRepositoryImpl
 
 ### Community 53 - "Course"
@@ -389,9 +388,9 @@ Nodes (11): Execution Handoff, File Structure, Overview, Plan Document Header, S
 Cohesion: 0.30
 Nodes (4): Section, SectionRepository, section_to_domain(), SectionRepositoryImpl
 
-### Community 58 - "TimetableUpload"
-Cohesion: 0.13
-Nodes (11): TimetableUpload, InvalidTransition, timetable_upload_to_domain(), TimetableUploadRepositoryImpl, Acceptance criteria, Goal, Input formats to support, Maths to specify first (+3 more)
+### Community 58 - "Circular"
+Cohesion: 0.06
+Nodes (24): Circular, TimetableUpload, InvalidTransition, TimetableUploadRepository, timetable_upload_to_domain(), TimetableUploadRepositoryImpl, test_round_trip_all_aggregates(), test_circular_state_machine_exhaustive() (+16 more)
 
 ### Community 59 - "Web Application Testing"
 Cohesion: 0.17
@@ -405,9 +404,9 @@ Nodes (5): Acceptance criteria, Goal, Maths to specify first, Stage 05: Calendar
 Cohesion: 0.18
 Nodes (10): Brainstorming, First: What Do You Actually Know?, Look Before You Ask, Play It Back, Red Flags, Size the Work, The Conversation, The Written Design (+2 more)
 
-### Community 62 - "Stage 01: Foundation, environment, Graphify, trusted skills"
-Cohesion: 0.50
-Nodes (3): Acceptance criteria, Goal, Stage 01: Foundation, environment, Graphify, trusted skills
+### Community 62 - "reminders/use_cases.py"
+Cohesion: 0.12
+Nodes (6): DeletePushSubscriptionUseCase, GetUpcomingNotificationsUseCase, GetUserReminderRulesUseCase, RegisterPushSubscriptionUseCase, UpdateReminderRuleUseCase, UpdateUserQuietHoursUseCase
 
 ### Community 63 - "RedisSlidingWindowRateLimiter"
 Cohesion: 0.29
@@ -429,6 +428,10 @@ Nodes (10): scripts, build, dev, fmt, format:check, generate:api, lint, start (+
 Cohesion: 0.42
 Nodes (7): connect(), nextReconnectDelay(), reloadAfterRecovery(), sessionKey(), setStatus(), showTombstone(), websocketUrl()
 
+### Community 70 - "compute_priority_score"
+Cohesion: 0.21
+Nodes (12): compute_lead_alert_times(), compute_overdue_alert_times(), compute_priority_score(), test_completed_task_priority(), test_lead_alert_times(), test_overdue_alert_times(), test_priority_bounds_property_active(), test_priority_bounds_property_overdue() (+4 more)
+
 ### Community 71 - "Stage 02: Domain model and persistence (OOAD core)"
 Cohesion: 0.22
 Nodes (5): nextConfig, geistMono, geistSans, metadata, next
@@ -442,8 +445,8 @@ Cohesion: 0.39
 Nodes (5): fetchInitialReadiness(), Home(), ReadinessData, ReadinessView(), react
 
 ### Community 74 - "Stage 07: Meeting circular scanning, extraction and review queue"
-Cohesion: 0.25
-Nodes (7): Acceptance criteria, Diagrams, Goal, Maths to specify first (MATHS.md), Persistence, Stage 02: Domain model and persistence (OOAD core), Tests
+Cohesion: 0.14
+Nodes (11): Backend Engineer, Responsibilities, Standards you are held to, Working method, Acceptance criteria, Diagrams, Goal, Maths to specify first (MATHS.md) (+3 more)
 
 ### Community 75 - "Stage 08: Documentation tasks, priority scoring and alerts"
 Cohesion: 0.29
@@ -464,6 +467,10 @@ Nodes (6): Design principles, Frontend Design, Ground your designs in the subjec
 ### Community 79 - "Stage 06: Reminder engine with exactly-once delivery"
 Cohesion: 0.33
 Nodes (5): Acceptance criteria, Goal, Maths to specify first, Stage 06: Reminder engine with exactly-once delivery, Tests
+
+### Community 80 - "TaskTemplateRepository"
+Cohesion: 0.15
+Nodes (4): TaskTemplateRepository, TaskTemplateModel, task_template_to_domain(), TaskTemplateRepositoryImpl
 
 ### Community 81 - "._transition"
 Cohesion: 0.29
@@ -501,9 +508,9 @@ Nodes (5): Before you start (one time, about 10 minutes), Run, Start here, What 
 Cohesion: 0.40
 Nodes (4): Architect, Design checks, Output for every design task, Responsibilities
 
-### Community 91 - "Reviewer"
-Cohesion: 0.40
-Nodes (4): Backend Engineer, Responsibilities, Standards you are held to, Working method
+### Community 91 - "confirm_timetable"
+Cohesion: 0.18
+Nodes (7): confirm_timetable(), ConfirmTimetableResponse, get_faculty_slots(), get_timetable_upload(), TimetableSlotResponse, TimetableUploadDetailResponse, UploadTimetableResponse
 
 ### Community 92 - "Graphify Protocol"
 Cohesion: 0.40
@@ -581,29 +588,29 @@ Nodes (3): Deploy on Vercel, Getting Started, Learn More
 Cohesion: 0.50
 Nodes (3): Kickoff prompt (paste this into the Antigravity agent), Resuming in a new conversation, Running a single stage manually
 
-### Community 113 - "1.3 State Machine Transition Algebras"
-Cohesion: 0.50
-Nodes (4): 1.2 Half-Open Interval Invariant and Overlap Arithmetic, 1.3 State Machine Transition Algebras, 1. Time and Recurrence, Circular State Machine
+### Community 131 - "main.py"
+Cohesion: 0.15
+Nodes (3): domain_exception_handler(), healthz(), readyz()
 
 ## Knowledge Gaps
-- **23 isolated node(s):** `facultydesk-backend`, `RFC-6455`, `clsx`, `@fullcalendar/core`, `@fullcalendar/daygrid` (+18 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 755 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **23 isolated node(s):** `RFC-6455`, `facultydesk-backend`, `@fullcalendar/core`, `@fullcalendar/daygrid`, `@fullcalendar/react` (+18 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 782 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **30 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `UnitOfWork` connect `UnitOfWork` to `Department`, `main.py`, `domain/__init__.py`, `directory.py`, `User`, `db/repositories.py`, `timetable.py`, `Test-Driven Development (TDD)`, `calendar.py`, `auth.py`, `package.json`, `reminders.py`, `Executing Plans`, `Circular`, `Event`, `extractor.py`, `Condition-Based Waiting`, `ScheduledNotification`, `entities.py`, `Stage 07: Meeting circular scanning, extraction and review queue`, `.__aexit__`?**
-  _High betweenness centrality (0.085) - this node is a cross-community bridge._
-- **Are the 39 inferred relationships involving `UnitOfWork` (e.g. with `cancel_calendar_event()` and `check_event_clashes()`) actually correct?**
-  _`UnitOfWork` has 39 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `facultydesk-backend`, `RFC-6455`, `clsx` to the rest of the system?**
+- **Why does `UnitOfWork` connect `UnitOfWork` to `test_calendar_full_pipeline`, `SqlAlchemyUnitOfWork`, `FacultyProfile`, `Initials`, `db/repositories.py`, `timetable.py`, `Test-Driven Development (TDD)`, `calendar.py`, `auth.py`, `package.json`, `reminders.py`, `Executing Plans`, `Circular`, `calendar/use_cases.py`, `extractor.py`, `tasks.py`, `domain/__init__.py`, `Root Cause Tracing`, `tasks/use_cases.py`, `circulars/use_cases.py`, `zoneinfo`, `reminders/use_cases.py`, `Stage 07: Meeting circular scanning, extraction and review queue`, `confirm_timetable`, `delete_task`?**
+  _High betweenness centrality (0.098) - this node is a cross-community bridge._
+- **Are the 52 inferred relationships involving `UnitOfWork` (e.g. with `cancel_calendar_event()` and `check_event_clashes()`) actually correct?**
+  _`UnitOfWork` has 52 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `RFC-6455`, `facultydesk-backend`, `@fullcalendar/core` to the rest of the system?**
   _23 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `datetime` be split into smaller, more focused modules?**
-  _Cohesion score 0.08701923076923077 - nodes in this community are weakly interconnected._
-- **Why does `2. Features that exist now` connect `User` to `Department`, `main.py`, `directory.py`, `timetable.py`, `Test-Driven Development (TDD)`, `UnitOfWork`, `Circular`, `TimetableSlot`, `ReminderRule`, `Event`, `Condition-Based Waiting`, `ScheduledNotification`, `ScheduledNotification`, `Course`, `PushSubscription`, `Department`, `FacultyDesk Agent Contract`, `Verification Before Completion`, `Course`, `scripts`, `Section`, `TimetableUpload`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
-- **Are the 23 inferred relationships involving `Principal` (e.g. with `require_admin()` and `require_hod_or_admin()`) actually correct?**
-  _`Principal` has 23 INFERRED edges - model-reasoned connections that need verification._
+  _Cohesion score 0.10056497175141244 - nodes in this community are weakly interconnected._
+- **Why does `Clock` connect `UnitOfWork` to `test_calendar_full_pipeline`, `SqlAlchemyUnitOfWork`, `FacultyProfile`, `Initials`, `timetable.py`, `Test-Driven Development (TDD)`, `calendar.py`, `auth.py`, `Principal`, `package.json`, `Executing Plans`, `Circular`, `calendar/use_cases.py`, `tasks.py`, `reminder_tasks.py`, `tasks/use_cases.py`, `Department`, `circulars/use_cases.py`, `FacultyDesk Agent Contract`, `Stage 07: Meeting circular scanning, extraction and review queue`, `confirm_timetable`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Are the 58 inferred relationships involving `Clock` (e.g. with `Standards you are held to` and `Non-negotiables`) actually correct?**
+  _`Clock` has 58 INFERRED edges - model-reasoned connections that need verification._
 - **Should `server.cjs` be split into smaller, more focused modules?**
   _Cohesion score 0.05034965034965035 - nodes in this community are weakly interconnected._

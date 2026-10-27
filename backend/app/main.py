@@ -14,6 +14,7 @@ from app.api.routers import (
     circulars_router,
     directory_router,
     reminders_router,
+    tasks_router,
     timetable_router,
 )
 from app.core.config import get_settings
@@ -51,6 +52,7 @@ app.include_router(timetable_router, prefix="/api")
 app.include_router(calendar_router, prefix="/api")
 app.include_router(reminders_router, prefix="/api")
 app.include_router(circulars_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api")
 
 
 

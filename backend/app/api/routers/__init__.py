@@ -3,6 +3,7 @@ from app.api.routers.calendar import router as calendar_router
 from app.api.routers.circulars import router as circulars_router
 from app.api.routers.directory import router as directory_router
 from app.api.routers.reminders import router as reminders_router
+from app.api.routers.tasks import router as tasks_router
 from app.api.routers.timetable import router as timetable_router
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "circulars_router",
     "directory_router",
     "reminders_router",
+    "tasks_router",
     "timetable_router",
 ]
 

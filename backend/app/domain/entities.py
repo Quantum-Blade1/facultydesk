@@ -21,6 +21,8 @@ from app.domain.value_objects import (
     NotificationStatus,
     QuietHours,
     Role,
+    TaskCategory,
+    TaskRecurrence,
     TaskStatus,
     TimeSlot,
     TimetableUploadStatus,
@@ -457,9 +459,15 @@ class Task:
         default_factory=lambda: datetime.now(UTC)
     )
     importance: int = 3
+    category: TaskCategory = TaskCategory.ACADEMIC_DOCUMENTATION
     status: TaskStatus = TaskStatus.TODO
     assignee_id: UUID = field(default_factory=uuid4)
     assigner_id: UUID = field(default_factory=uuid4)
+    parent_assignment_id: UUID | None = None
+    recurrence: TaskRecurrence | None = None
+    created_at_utc: datetime = field(
+        default_factory=lambda: datetime.now(UTC)
+    )
     domain_events: list[DomainEvent] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -487,6 +495,29 @@ class Task:
 
     def change_status(self, new_status: TaskStatus) -> None:
         self.status = new_status
+
+
+@dataclass
+class TaskTemplate:
+    id: UUID = field(default_factory=uuid4)
+    title: str = ""
+    description: str = ""
+    default_importance: int = 3
+    default_lead_days: int = 7
+    category: TaskCategory = TaskCategory.ACADEMIC_DOCUMENTATION
+    department_id: UUID | None = None
+
+    def __post_init__(self) -> None:
+        if not self.title.strip():
+            raise InvariantViolation("TaskTemplate title cannot be empty")
+        if not (1 <= self.default_importance <= 5):
+            msg = (
+                f"TaskTemplate default_importance must be between 1 and 5, "
+                f"got: {self.default_importance}"
+            )
+            raise InvariantViolation(msg)
+        if self.default_lead_days < 0:
+            raise InvariantViolation("TaskTemplate default_lead_days cannot be negative")
 
 
 @dataclass

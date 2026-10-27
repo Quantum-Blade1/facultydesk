@@ -116,6 +116,19 @@ class TaskStatus(StrEnum):
     ARCHIVED = "ARCHIVED"
 
 
+class TaskCategory(StrEnum):
+    ACADEMIC_DOCUMENTATION = "Academic documentation"
+    EXAM_WORK = "Exam work"
+    ACCREDITATION = "Accreditation"
+    ADMINISTRATIVE = "Administrative"
+    PERSONAL = "Personal"
+
+
+class TaskRecurrence(StrEnum):
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
+
+
 class TimetableUploadStatus(StrEnum):
     UPLOADED = "UPLOADED"
     PARSING = "PARSING"

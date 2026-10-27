@@ -54,6 +54,7 @@ graphify-out/*
 # Mermaid temporary
 docs/diagrams/*.mmd
 
-# OS
+# Scratch
+scratch/
 .DS_Store
 Thumbs.db

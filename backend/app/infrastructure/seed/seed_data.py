@@ -11,6 +11,8 @@ from app.domain import (
     Holiday,
     Initials,
     Role,
+    TaskCategory,
+    TaskTemplate,
     User,
 )
 from app.infrastructure.db.repositories import SqlAlchemyUnitOfWork
@@ -141,6 +143,58 @@ async def seed_database() -> None:
                     label=label,
                 )
                 await uow.academic_terms.save_holiday(h)
+
+        templates_spec = [
+            (
+                "CO-PO mapping",
+                "Map Course Outcomes to Program Outcomes for assigned courses.",
+                TaskCategory.ACADEMIC_DOCUMENTATION,
+                14,
+                4,
+            ),
+            (
+                "IA marks upload",
+                "Upload Internal Assessment test marks to the departmental portal.",
+                TaskCategory.EXAM_WORK,
+                7,
+                5,
+            ),
+            (
+                "Attendance shortage report",
+                "Generate and submit list of students with attendance below 75%.",
+                TaskCategory.ACADEMIC_DOCUMENTATION,
+                3,
+                4,
+            ),
+            (
+                "Lab manual update",
+                "Review and update lab experiment procedures and rubrics.",
+                TaskCategory.ACADEMIC_DOCUMENTATION,
+                21,
+                3,
+            ),
+            (
+                "Course file submission",
+                "Submit complete course file including syllabus, notes, question papers.",
+                TaskCategory.ACADEMIC_DOCUMENTATION,
+                10,
+                4,
+            ),
+        ]
+        existing_templates = await uow.task_templates.list_by_department(dept.id)
+        existing_titles = {t.title for t in existing_templates}
+        for title, desc, cat, lead_days, imp in templates_spec:
+            if title not in existing_titles:
+                tpl = TaskTemplate(
+                    id=uuid4(),
+                    department_id=dept.id,
+                    title=title,
+                    description=desc,
+                    category=cat,
+                    default_lead_days=lead_days,
+                    default_importance=imp,
+                )
+                await uow.task_templates.save(tpl)
 
         await uow.commit()
 

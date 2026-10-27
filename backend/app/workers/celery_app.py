@@ -34,6 +34,14 @@ celery_app.conf.update(
             "task": "recover_stale_sending_notifications",
             "schedule": 300.0,
         },
+        "schedule-daily-overdue-alerts-hourly": {
+            "task": "schedule_daily_overdue_alerts",
+            "schedule": crontab(minute=0),
+        },
+        "schedule-hod-escalation-alerts-hourly": {
+            "task": "schedule_hod_escalation_alerts",
+            "schedule": crontab(minute=30),
+        },
     },
 )
 

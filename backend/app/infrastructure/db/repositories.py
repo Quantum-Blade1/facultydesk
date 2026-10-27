@@ -45,8 +45,12 @@ from app.domain import (
     Section,
     SectionRepository,
     Task,
+    TaskCategory,
+    TaskRecurrence,
     TaskRepository,
     TaskStatus,
+    TaskTemplate,
+    TaskTemplateRepository,
     TimeSlot,
     TimetableSlot,
     TimetableSlotRepository,
@@ -74,6 +78,7 @@ from app.infrastructure.db.models import (
     ScheduledNotificationModel,
     SectionModel,
     TaskModel,
+    TaskTemplateModel,
     TimetableSlotModel,
     TimetableUploadModel,
     UserModel,
@@ -210,9 +215,25 @@ def task_to_domain(m: TaskModel) -> Task:
         description=m.description,
         deadline_utc=m.deadline_utc,
         importance=m.importance,
+        category=TaskCategory(m.category),
         status=TaskStatus(m.status),
         assignee_id=m.assignee_id,
         assigner_id=m.assigner_id,
+        parent_assignment_id=m.parent_assignment_id,
+        recurrence=TaskRecurrence(m.recurrence) if m.recurrence else None,
+        created_at_utc=m.created_at_utc,
+    )
+
+
+def task_template_to_domain(m: TaskTemplateModel) -> TaskTemplate:
+    return TaskTemplate(
+        id=m.id,
+        title=m.title,
+        description=m.description,
+        default_importance=m.default_importance,
+        default_lead_days=m.default_lead_days,
+        category=TaskCategory(m.category),
+        department_id=m.department_id,
     )
 
 
@@ -636,6 +657,21 @@ class EventRepositoryImpl(EventRepository):
         await self._session.execute(stmt)
         await self._session.flush()
 
+    async def get_by_source_id(self, source_id: UUID) -> Event | None:
+        stmt = (
+            select(EventModel)
+            .options(selectinload(EventModel.attendees))
+            .where(EventModel.source_id == source_id)
+        )
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return event_to_domain(model) if model else None
+
+    async def delete_by_source_id(self, source_id: UUID) -> None:
+        stmt = sa_delete(EventModel).where(EventModel.source_id == source_id)
+        await self._session.execute(stmt)
+        await self._session.flush()
+
 
 
 class CircularRepositoryImpl(CircularRepository):
@@ -913,12 +949,48 @@ class TaskRepositoryImpl(TaskRepository):
         model = result.scalar_one_or_none()
         return task_to_domain(model) if model else None
 
-    async def list_by_assignee(self, assignee_id: UUID) -> list[Task]:
+    async def list_by_assignee(
+        self, assignee_id: UUID, status: TaskStatus | None = None
+    ) -> list[Task]:
+        stmt = select(TaskModel).where(TaskModel.assignee_id == assignee_id)
+        if status is not None:
+            stmt = stmt.where(TaskModel.status == status.value)
+        stmt = stmt.order_by(TaskModel.deadline_utc.asc())
+        result = await self._session.execute(stmt)
+        return [task_to_domain(m) for m in result.scalars().all()]
+
+    async def list_by_parent_assignment(self, parent_assignment_id: UUID) -> list[Task]:
         stmt = (
             select(TaskModel)
-            .where(TaskModel.assignee_id == assignee_id)
-            .order_by(TaskModel.deadline_utc)
+            .where(TaskModel.parent_assignment_id == parent_assignment_id)
+            .order_by(TaskModel.deadline_utc.asc())
         )
+        result = await self._session.execute(stmt)
+        return [task_to_domain(m) for m in result.scalars().all()]
+
+    async def list_by_assigner(self, assigner_id: UUID) -> list[Task]:
+        stmt = (
+            select(TaskModel)
+            .where(TaskModel.assigner_id == assigner_id)
+            .order_by(TaskModel.deadline_utc.asc())
+        )
+        result = await self._session.execute(stmt)
+        return [task_to_domain(m) for m in result.scalars().all()]
+
+    async def list_overdue(self, as_of_utc: datetime) -> list[Task]:
+        stmt = (
+            select(TaskModel)
+            .where(
+                TaskModel.status != TaskStatus.DONE.value,
+                TaskModel.deadline_utc < as_of_utc,
+            )
+            .order_by(TaskModel.deadline_utc.asc())
+        )
+        result = await self._session.execute(stmt)
+        return [task_to_domain(m) for m in result.scalars().all()]
+
+    async def list_all(self) -> list[Task]:
+        stmt = select(TaskModel).order_by(TaskModel.deadline_utc.asc())
         result = await self._session.execute(stmt)
         return [task_to_domain(m) for m in result.scalars().all()]
 
@@ -931,9 +1003,13 @@ class TaskRepositoryImpl(TaskRepository):
                 description=task.description,
                 deadline_utc=task.deadline_utc,
                 importance=task.importance,
+                category=task.category.value,
                 status=task.status.value,
                 assignee_id=task.assignee_id,
                 assigner_id=task.assigner_id,
+                parent_assignment_id=task.parent_assignment_id,
+                recurrence=task.recurrence.value if task.recurrence else None,
+                created_at_utc=task.created_at_utc,
             )
             self._session.add(model)
         else:
@@ -941,11 +1017,72 @@ class TaskRepositoryImpl(TaskRepository):
             model.description = task.description
             model.deadline_utc = task.deadline_utc
             model.importance = task.importance
+            model.category = task.category.value
             model.status = task.status.value
             model.assignee_id = task.assignee_id
             model.assigner_id = task.assigner_id
+            model.parent_assignment_id = task.parent_assignment_id
+            model.recurrence = task.recurrence.value if task.recurrence else None
         await self._session.flush()
         return task_to_domain(model)
+
+    async def delete(self, task_id: UUID) -> None:
+        model = await self._session.get(TaskModel, task_id)
+        if model is not None:
+            await self._session.delete(model)
+            await self._session.flush()
+
+
+class TaskTemplateRepositoryImpl(TaskTemplateRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id(self, template_id: UUID) -> TaskTemplate | None:
+        stmt = select(TaskTemplateModel).where(TaskTemplateModel.id == template_id)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return task_template_to_domain(model) if model else None
+
+    async def list_by_department(self, department_id: UUID | None) -> list[TaskTemplate]:
+        if department_id is None:
+            stmt = select(TaskTemplateModel).where(TaskTemplateModel.department_id.is_(None))
+        else:
+            stmt = select(TaskTemplateModel).where(
+                (TaskTemplateModel.department_id == department_id)
+                | (TaskTemplateModel.department_id.is_(None))
+            )
+        stmt = stmt.order_by(TaskTemplateModel.title.asc())
+        result = await self._session.execute(stmt)
+        return [task_template_to_domain(m) for m in result.scalars().all()]
+
+    async def save(self, template: TaskTemplate) -> TaskTemplate:
+        model = await self._session.get(TaskTemplateModel, template.id)
+        if model is None:
+            model = TaskTemplateModel(
+                id=template.id,
+                department_id=template.department_id,
+                title=template.title,
+                description=template.description,
+                category=template.category.value,
+                default_lead_days=template.default_lead_days,
+                default_importance=template.default_importance,
+            )
+            self._session.add(model)
+        else:
+            model.department_id = template.department_id
+            model.title = template.title
+            model.description = template.description
+            model.category = template.category.value
+            model.default_lead_days = template.default_lead_days
+            model.default_importance = template.default_importance
+        await self._session.flush()
+        return task_template_to_domain(model)
+
+    async def delete(self, template_id: UUID) -> None:
+        model = await self._session.get(TaskTemplateModel, template_id)
+        if model is not None:
+            await self._session.delete(model)
+            await self._session.flush()
 
 
 class AuditLogRepositoryImpl(AuditLogRepository):
@@ -1254,6 +1391,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.reminder_rules = ReminderRuleRepositoryImpl(self._session)
         self.push_subscriptions = PushSubscriptionRepositoryImpl(self._session)
         self.tasks = TaskRepositoryImpl(self._session)
+        self.task_templates = TaskTemplateRepositoryImpl(self._session)
         self.audit_logs = AuditLogRepositoryImpl(self._session)
         self.refresh_tokens = RefreshTokenRepositoryImpl(self._session)
         self.timetable_uploads = TimetableUploadRepositoryImpl(self._session)

@@ -19,11 +19,12 @@ from app.domain.entities import (
     ScheduledNotification,
     Section,
     Task,
+    TaskTemplate,
     TimetableSlot,
     TimetableUpload,
     User,
 )
-from app.domain.value_objects import EventKind, Initials, NotificationStatus
+from app.domain.value_objects import EventKind, Initials, NotificationStatus, TaskStatus
 
 
 class DepartmentRepository(ABC):
@@ -139,6 +140,14 @@ class EventRepository(ABC):
     ) -> None:
         """Delete future materialised timetable occurrences for a slot."""
 
+    @abstractmethod
+    async def get_by_source_id(self, source_id: UUID) -> Event | None:
+        """Fetch event by source ID."""
+
+    @abstractmethod
+    async def delete_by_source_id(self, source_id: UUID) -> None:
+        """Delete event by source ID."""
+
 
 class CircularRepository(ABC):
     @abstractmethod
@@ -248,12 +257,52 @@ class TaskRepository(ABC):
         """Fetch task by unique identifier."""
 
     @abstractmethod
-    async def list_by_assignee(self, assignee_id: UUID) -> list[Task]:
+    async def list_by_assignee(
+        self, assignee_id: UUID, status: TaskStatus | None = None
+    ) -> list[Task]:
         """List tasks assigned to a user."""
+
+    @abstractmethod
+    async def list_by_parent_assignment(self, parent_assignment_id: UUID) -> list[Task]:
+        """List all subtasks belonging to a parent bulk assignment."""
+
+    @abstractmethod
+    async def list_by_assigner(self, assigner_id: UUID) -> list[Task]:
+        """List tasks created/assigned by a user."""
+
+    @abstractmethod
+    async def list_overdue(self, as_of_utc: datetime) -> list[Task]:
+        """List uncompleted tasks whose deadline has passed."""
+
+    @abstractmethod
+    async def list_all(self) -> list[Task]:
+        """List all tasks across system."""
 
     @abstractmethod
     async def save(self, task: Task) -> Task:
         """Persist a task."""
+
+    @abstractmethod
+    async def delete(self, task_id: UUID) -> None:
+        """Delete a task."""
+
+
+class TaskTemplateRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, template_id: UUID) -> TaskTemplate | None:
+        """Fetch template by ID."""
+
+    @abstractmethod
+    async def list_by_department(self, department_id: UUID | None) -> list[TaskTemplate]:
+        """List templates available to a department, including institute-wide templates."""
+
+    @abstractmethod
+    async def save(self, template: TaskTemplate) -> TaskTemplate:
+        """Persist a task template."""
+
+    @abstractmethod
+    async def delete(self, template_id: UUID) -> None:
+        """Delete a task template."""
 
 
 class AuditLogRepository(ABC):
@@ -373,6 +422,7 @@ class UnitOfWork(ABC):
     reminder_rules: ReminderRuleRepository
     push_subscriptions: PushSubscriptionRepository
     tasks: TaskRepository
+    task_templates: TaskTemplateRepository
     audit_logs: AuditLogRepository
     refresh_tokens: RefreshTokenRepository
     timetable_uploads: TimetableUploadRepository

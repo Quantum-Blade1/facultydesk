@@ -50,6 +50,13 @@ Faculty juggle classes from a timetable, meetings announced on paper circulars, 
 - Review queue gate predicate protecting faculty calendars, routing low-confidence or unconfirmed circulars to HOD review with human-readable reasons.
 - Duplicate detection predicate checking calendar day, start time window ($\pm 15$m), and normalized title similarity against existing events.
 - Circular confirmation workflow creating `MEETING` events on all attendees' calendars and scheduling multi-channel Stage 06 reminders.
+- Task management and assignment system: Personal documentation task creation, HOD bulk assignment to individual faculty, multiple faculty, or department-wide with unique `parent_assignment_id`.
+- Transparent Task Priority Scoring engine ($P \in [0, 1]$ for active tasks, $P \in (1, 2]$ for overdue tasks, $-1.0$ for completed tasks) balancing importance ($w_I = 0.4$) and exponential decay urgency ($w_U = 0.6, \tau = 48\text{h}$).
+- Standard departmental task templates seeded via `make seed` (CO-PO mapping, IA marks upload, attendance shortage report, lab manual update, course file submission) with pre-filled category, importance, and lead days.
+- Multi-tier alert schedule set ($\{D-72\text{h}, D-24\text{h}, D-2\text{h}\}$, daily overdue reminders at 09:00 IST, and 24h HOD escalation summaries at 09:30 IST) with strict exactly-once delivery.
+- Automatic calendar synchronization establishing `DEADLINE` events (`EventKind.DEADLINE`) for every task, linked to task lifecycle.
+- Full task lifecycle management: Completion automatically cancels all pending alerts, while reopening reactivates alerts for future deadlines.
+- HOD dashboard analytics calculating assignment completion rates ($\frac{N_{\text{completed}}}{N_{\text{total}}} \times 100\%$) and per-faculty overdue counts.
 - Docker Compose development and production environments with health checks on all services including Mailpit SMTP testing server.
 - Knowledge graph indexing with Graphify and verified trusted skills suite.
 
@@ -573,6 +580,47 @@ sequenceDiagram
     EventUC->>DB: INSERT INTO scheduled_notifications (offsets: 24h, 1h, 10m)
     API->>DB: UPDATE circulars SET status=CONFIRMED
     API-->>HOD: 200 OK (Event details)
+```
+
+### 4.11 Task Assignment, Alert Lifecycle and Escalation Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor HOD as HOD User
+    participant API as FastAPI Router
+    participant UC as AssignTaskUseCase
+    participant UOW as SqlAlchemyUnitOfWork
+    participant DB as PostgreSQL
+    participant Worker as Celery Beat Worker
+    participant Disp as ReminderDispatcher
+    actor Faculty as Faculty User
+
+    HOD->>API: POST /api/tasks/assign (template, deadline, faculty_ids)
+    API->>UC: execute(assigner_id, title, deadline, importance, assignee_ids)
+    loop For each assignee
+        UC->>UOW: save(Task with parent_assignment_id)
+        UC->>UOW: save(Event with kind=DEADLINE)
+        UC->>UOW: save(ScheduledNotifications for 72h, 24h, 2h)
+    end
+    UOW->>DB: Commit transaction
+    API-->>HOD: 201 Created (tasks with parent_assignment_id)
+
+    Worker->>UOW: Periodic dispatch_due_notifications (every 30s)
+    Worker->>Disp: dispatch_due(UOW)
+    Disp->>DB: Claim PENDING notifications (SKIP LOCKED)
+    Disp-->>Faculty: Deliver lead reminder via Email / Push
+
+    opt Task becomes overdue by 24h
+        Worker->>DB: schedule_hod_escalation_alerts (hourly beat)
+        DB-->>Disp: Dispatch escalation summary notification
+        Disp-->>HOD: Deliver Daily Escalation Summary Report
+    end
+
+    Faculty->>API: POST /api/tasks/{id}/complete
+    API->>UOW: cancel_pending_by_target(task_id)
+    UOW->>DB: Update notifications SET status='CANCELLED'
+    API-->>Faculty: 200 OK (status=DONE, score=-1.0)
 ```
 
 ## 5. How to run, test and deploy

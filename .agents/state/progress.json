@@ -1,6 +1,6 @@
 {
   "project": "FacultyDesk",
-  "current_stage": "08",
+  "current_stage": "09",
   "stages": [
     {
       "id": "01",
@@ -212,13 +212,35 @@
     {
       "id": "08",
       "file": "08-tasks-and-alerts.md",
-      "status": "pending",
-      "started_at": null,
-      "finished_at": null,
-      "commit": null,
-      "tasks": [],
-      "evidence": []
+      "status": "done",
+      "started_at": "2026-10-27T23:20:00+05:30",
+      "finished_at": "2026-10-28T00:20:00+05:30",
+      "commit": "81b0d09",
+      "tasks": [
+        "spec priority score formula, alert schedule set, and HOD completion metrics in docs/MATHS.md",
+        "create reversible migration for task categories, parent_assignment_id, recurrence, and task_templates",
+        "implement TaskCategory, TaskRecurrence, TaskTemplate in domain model and repositories",
+        "implement maths functions for priority score, lead alerts, overdue alerts, and completion rate",
+        "implement task management use cases (create, assign, update, complete, reopen, delete, list, hod-dashboard)",
+        "implement calendar two-way synchronization creating DEADLINE events for tasks with due dates",
+        "seed 5 standard documentation templates (CO-PO, IA marks, attendance shortage, lab manual, course file)",
+        "wire Celery beat tasks for daily overdue alerts (09:00 IST) and HOD 24h escalation digest (09:30 IST)",
+        "wire /api/tasks FastAPI endpoints",
+        "write unit tests for priority maths, monotonicity, lead alerts, and completion metrics",
+        "write integration test pipeline for task lifecycle, calendar sync, alerts, and HOD dashboard",
+        "verify live with scratch/verify_stage_08.py against running Docker containers",
+        "update docs/PROJECT.md, docs/DECISIONS.md, and render SVG sequence/decision diagrams"
+      ],
+      "evidence": [
+        "make lint typecheck test -> Success: no issues found in 123 source files; 73 passed in 11.92s",
+        "alembic upgrade head -> Reversible migration 005ce1a0ebb1 applied cleanly",
+        "test_task_maths.py -> 9 passed (priority score, monotonicity, lead alerts, overdue schedule, completion rate)",
+        "test_task_pipeline.py -> 3 passed (task CRUD + calendar sync, HOD bulk assignment + dashboard, alert workers)",
+        "Live verification verify_stage_08.py -> 9/9 criteria verified: task creation, calendar sync, priority ordering, lead alert planning, task completion calendar removal, HOD bulk assignment, HOD dashboard metrics, daily overdue Celery alert, 24h escalation alert",
+        "docs/diagrams/task_alert_sequence.svg and stage_08_decisions.svg rendered and verified"
+      ]
     },
+
     {
       "id": "09",
       "file": "09-frontend-pwa.md",

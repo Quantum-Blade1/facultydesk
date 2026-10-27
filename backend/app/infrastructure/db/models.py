@@ -341,6 +341,7 @@ class TaskModel(Base):
     __table_args__ = (
         CheckConstraint("importance >= 1 AND importance <= 5", name="ck_tasks_importance"),
         Index("ix_tasks_assignee_deadline", "assignee_id", "deadline_utc"),
+        Index("ix_tasks_parent_assignment", "parent_assignment_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -350,6 +351,9 @@ class TaskModel(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     importance: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    category: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="Academic documentation"
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="TODO")
     assignee_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -357,6 +361,31 @@ class TaskModel(Base):
     assigner_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+    parent_assignment_id: Mapped[uuid.UUID | None] = mapped_column(
+        nullable=True
+    )
+    recurrence: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+
+class TaskTemplateModel(Base):
+    __tablename__ = "task_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("departments.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    category: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="Academic documentation"
+    )
+    default_lead_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
+    default_importance: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     created_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

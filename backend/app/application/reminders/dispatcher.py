@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from app.application.reminders.maths import compute_backoff_delay
 from app.core.clock import Clock
 from app.domain.repositories import UnitOfWork
+from app.domain.value_objects import TaskStatus
 from app.infrastructure.notifiers.base import NotificationPayload, Notifier
 
 
@@ -41,21 +42,53 @@ class ReminderDispatcher:
                     continue
 
                 profile = await uow.faculty_profiles.get_by_user_id(user.id)
-                event = await uow.events.get_by_id(notif.target_id)
-                if event is None:
-                    continue
+                if notif.target_kind == "TASK":
+                    task = await uow.tasks.get_by_id(notif.target_id)
+                    if task is None or task.status == TaskStatus.DONE:
+                        notif.cancel()
+                        await uow.notifications.save(notif)
+                        await uow.commit()
+                        continue
+                    local_dt_str = task.deadline_utc.astimezone(tz).strftime(
+                        "%A, %d %b %Y at %I:%M %p"
+                    )
+                    payload = NotificationPayload(
+                        title=f"Task Deadline: {task.title}",
+                        body=f"Deadline: {local_dt_str}. Category: {task.category.value}",
+                        start_time_local=local_dt_str,
+                        venue=task.category.value,
+                        deep_link=f"{self._app_url}/tasks",
+                        event_id=task.id,
+                    )
+                elif notif.target_kind == "ESCALATION":
+                    today_str = now_utc.astimezone(tz).strftime("%A, %d %b %Y")
+                    payload = NotificationPayload(
+                        title="FacultyDesk Escalation: Overdue Assigned Tasks",
+                        body=(
+                            "One or more documentation tasks assigned to faculty "
+                            "are overdue by 24h or more."
+                        ),
+                        start_time_local=today_str,
+                        venue="Departmental Tasks",
+                        deep_link=f"{self._app_url}/tasks/dashboard",
+                        event_id=notif.target_id,
+                    )
+                else:
+                    event = await uow.events.get_by_id(notif.target_id)
+                    if event is None:
+                        continue
 
-                local_dt_str = event.start_utc.astimezone(tz).strftime(
-                    "%A, %d %b %Y at %I:%M %p"
-                )
-                payload = NotificationPayload(
-                    title=event.title,
-                    body=f"{event.location} at {local_dt_str}",
-                    start_time_local=local_dt_str,
-                    venue=event.location,
-                    deep_link=f"{self._app_url}/calendar?event={event.id}",
-                    event_id=event.id,
-                )
+                    local_dt_str = event.start_utc.astimezone(tz).strftime(
+                        "%A, %d %b %Y at %I:%M %p"
+                    )
+                    payload = NotificationPayload(
+                        title=event.title,
+                        body=f"{event.location} at {local_dt_str}",
+                        start_time_local=local_dt_str,
+                        venue=event.location,
+                        deep_link=f"{self._app_url}/calendar?event={event.id}",
+                        event_id=event.id,
+                    )
 
                 try:
                     await self._notifier.send(

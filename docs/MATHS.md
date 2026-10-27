@@ -1080,6 +1080,127 @@ Body: `"All faculty members are requested to attend a meeting on 28.10.2026 at 3
 
 ## 8. Task Priority and Alerts
 
+### 8.1 Transparent Task Priority Scoring Function
+
+1. **Idea**:
+Faculty must prioritize documentation and academic tasks without guessing. We define a deterministic, mathematically continuous priority function $P(I, h, d_{\text{overdue}})$ that balances subjective administrative importance ($I \in [1, 5]$) and objective temporal urgency ($h$ hours remaining). Tasks that are overdue ($h \le 0$) jump immediately to an overdue score tier ($P > 1.0$), ensuring overdue items always appear ahead of all pending items on faculty dashboards.
+
+2. **Formula and Invariants**:
+Let $I \in \{1, 2, 3, 4, 5\}$ be the integer importance rating.
+Let $t_{\text{now}}$ be the current UTC time from the injected clock.
+Let $D$ be the task deadline in UTC (`deadline_utc`).
+
+Define remaining hours $h \in \mathbb{R}$:
+$$h = \frac{D - t_{\text{now}}}{3600}$$
+
+Define overdue days $d_{\text{overdue}} \in \mathbb{R}_{\ge 0}$:
+$$d_{\text{overdue}} = \max\left(0.0, \frac{t_{\text{now}} - D}{86400}\right)$$
+
+The Priority Score $P \in [0.0, 2.0]$ is defined as:
+$$P(I, h, d_{\text{overdue}}) = \begin{cases}
+1.0 + \displaystyle\frac{\min(d_{\text{overdue}}, 7.0)}{7.0} & \text{if } h \le 0 \lor d_{\text{overdue}} > 0 \\
+w_I \cdot \displaystyle\frac{I - 1}{4} + w_U \cdot \exp\left(-\frac{h}{\tau}\right) & \text{if } h > 0
+\end{cases}$$
+
+where the system parameters are:
+- $w_I = 0.4$ (weight of importance)
+- $w_U = 0.6$ (weight of temporal urgency, with $w_I + w_U = 1.0$)
+- $\tau = 48.0\text{ hours}$ (exponential urgency decay constant)
+- Maximum overdue grace scale: $7.0\text{ days}$
+
+**Mathematical Invariants**:
+1. **Range Bounds**:
+   $$\forall \text{active task } (h > 0), \quad 0.0 \le P \le 1.0$$
+   $$\forall \text{overdue task } (h \le 0), \quad 1.0 \le P \le 2.0$$
+2. **Strict Overdue Separation**:
+   $$\forall \text{overdue task } T_1 \text{ and active task } T_2, \quad P(T_1) \ge 1.0 \ge P(T_2)$$
+   with $P(T_1) > 1.0$ whenever $d_{\text{overdue}} > 0$.
+3. **Monotonicity**:
+   $$\frac{\partial P}{\partial I} = \frac{w_I}{4} = 0.10 \ge 0 \quad (\text{monotonically non-decreasing in importance})$$
+   $$\frac{\partial P}{\partial h} = -\frac{w_U}{\tau} \exp\left(-\frac{h}{\tau}\right) = -\frac{0.6}{48} e^{-h/48} < 0 \quad (\text{monotonically non-increasing in remaining hours})$$
+
+**Justification of Constants**:
+- **$w_U = 0.6 > w_I = 0.4$**: Imminent deadlines cannot wait. An importance-3 task due in 2 hours must rank higher than an importance-5 task due in two weeks ($0.20 + 0.57 = 0.77$ vs $0.40 + 0.00 = 0.40$).
+- **$\tau = 48\text{h}$**: College faculty typically plan and execute documentation within a 2-day working horizon. Urgency accelerates non-linearly inside the final 48 hours ($e^{-48/48} = e^{-1} \approx 0.368$, while $e^{-12/48} \approx 0.779$).
+- **$7.0\text{ days overdue scale}$**: Overdue tasks increase in urgency daily for a full week, capping at $P = 2.0$, preventing floating-point divergence.
+
+3. **Worked Table**:
+Let $t_{\text{now}} = \text{2026-10-27T10:00:00Z}$.
+Consider five documentation tasks:
+
+| ID | Title | $I$ | Deadline (UTC) | Status / Time Remaining | Importance Comp ($0.4 \cdot \frac{I-1}{4}$) | Urgency Comp ($0.6 \cdot e^{-h/48}$) | Total Score $P$ | Rank |
+|---|---|---|---|---|---|---|---|---|
+| **T1** | End Sem Grade Submission | 5 | 2026-10-25T10:00:00Z | Overdue 2.0 days ($d=2$) | — | — | $1 + \frac{2}{7} \approx \mathbf{1.2857}$ | **1** |
+| **T2** | Midterm IA Marks Upload | 5 | 2026-10-27T16:00:00Z | Active, $h = 6.0\text{h}$ | $0.4 \times \frac{4}{4} = 0.4000$ | $0.6 \times e^{-6/48} \approx 0.5295$ | $\mathbf{0.9295}$ | **2** |
+| **T3** | Lab Manual Revision | 3 | 2026-10-27T22:00:00Z | Active, $h = 12.0\text{h}$ | $0.4 \times \frac{2}{4} = 0.2000$ | $0.6 \times e^{-12/48} \approx 0.4673$ | $\mathbf{0.6673}$ | **3** |
+| **T4** | CO-PO Mapping Draft | 4 | 2026-10-30T10:00:00Z | Active, $h = 72.0\text{h}$ | $0.4 \times \frac{3}{4} = 0.3000$ | $0.6 \times e^{-72/48} \approx 0.1339$ | $\mathbf{0.4339}$ | **4** |
+| **T5** | Course File Archival | 2 | 2026-11-01T10:00:00Z | Active, $h = 120.0\text{h}$ | $0.4 \times \frac{1}{4} = 0.1000$ | $0.6 \times e^{-120/48} \approx 0.0493$ | $\mathbf{0.1493}$ | **5** |
+
+Resulting priority ordering: $\mathbf{T1 > T2 > T3 > T4 > T5}$.
+
+4. **Edge Cases**:
+- Task completed: Completed tasks are excluded from priority ranking or assigned $P = -1.0$.
+- Zero hours remaining ($h = 0$): $P = 0.4 \cdot \frac{I-1}{4} + 0.6 \cdot 1.0 \in [0.6, 1.0]$. The instant $t_{\text{now}} > D$, $P$ transitions to $1.0 + \epsilon > 1.0$.
+- Negative importance or $I > 5$: Domain entity enforces invariant $1 \le I \le 5$ at constructor boundary.
+- Far future deadline ($h \to \infty$): Urgency component vanishes ($e^{-\infty} = 0$), so $P = w_I \frac{I-1}{4} \in [0.0, 0.4]$.
+
+5. **Complexity**:
+- Time complexity: $O(1)$ per task score evaluation; $O(N \log N)$ to sort $N$ tasks ($< 2\text{ ms}$ for $N = 1000$).
+- Space complexity: $O(1)$ auxiliary storage.
+
+6. **Proof Plan**:
+- `test_priority_bounds_property`: Hypothesis test proving $P \in [0.0, 1.0]$ for active tasks, $P \in [1.0, 2.0]$ for overdue tasks.
+- `test_priority_monotonicity_hours`: Property test verifying $\frac{\partial P}{\partial h} \le 0$.
+- `test_priority_monotonicity_importance`: Property test verifying $\frac{\partial P}{\partial I} \ge 0$.
+- `test_priority_worked_example_table`: Exact reproduction of table above.
+
+---
+
+### 8.2 Alert Schedule Set and Escalation Function
+
+1. **Idea**:
+Task alerts follow a formal lead-time schedule prior to the deadline, and switch to daily recurring overdue alerts until the task is marked completed. When an assigned task remains overdue past 24 hours, an escalation notification is sent to the assigner (HOD).
+
+2. **Alert Set Definition**:
+Let task deadline be $D \in \text{UTC}$.
+Let task creation time be $t_{\text{created}} \in \text{UTC}$.
+Let current time be $t_{\text{now}} \in \text{UTC}$.
+
+**Lead Time Alerts Set**:
+$$\mathcal{A}_{\text{lead}}(D, t_{\text{created}}) = \{D - 72\text{h}, D - 24\text{h}, D - 2\text{h}\} \cap (t_{\text{created}}, D)$$
+Only offsets that lie strictly in the future of task creation are scheduled.
+
+**Overdue Daily Alerts**:
+For every local calendar day $d_k > \operatorname{date}(D)$ where task status $\ne \text{DONE}$:
+$$\mathcal{A}_{\text{overdue}}(d_k) = \operatorname{combine}(d_k, 09:00\text{ local time})$$
+
+**HOD Escalation Trigger**:
+$$\operatorname{EscalateToHOD}(T) \iff (T.\text{status} \ne \text{DONE}) \land (t_{\text{now}} \ge D + 24\text{h}) \land (T.\text{assigner\_id} \ne T.\text{assignee\_id})$$
+
+3. **Idempotency and Cancellation Invariant**:
+Every scheduled task alert is keyed by:
+$$K = \operatorname{SHA-256}(\text{"TASK:"} \parallel T.\text{id} \parallel T.\text{assignee\_id} \parallel \text{offset\_or\_date} \parallel \text{channel})$$
+When $T$ transitions to `DONE`, all associated pending notifications are cancelled atomically:
+$$\text{UPDATE scheduled\_notifications SET status='CANCELLED' WHERE target\_id = } T.\text{id} \land \text{status='PENDING'}$$
+
+---
+
+### 8.3 HOD Dashboard Metrics
+
+1. **Assignment Completion Rate**:
+For an assignment parent ID $A$ with assigned subtasks $\mathcal{T}_A = \{t_1, t_2, \dots, t_m\}$:
+$$\operatorname{CompletionRate}(A) = \begin{cases}
+100.0\% & \text{if } |\mathcal{T}_A| = 0 \\
+\displaystyle\frac{|\{t \in \mathcal{T}_A \mid t.\text{status} = \text{DONE}\}|}{|\mathcal{T}_A|} \times 100.0\% & \text{otherwise}
+\end{cases}$$
+
+2. **Overdue Task Count per Faculty**:
+For faculty member $f \in \text{FacultyProfile}$:
+$$\operatorname{OverdueCount}(f) = |\{t \mid t.\text{assignee\_id} = f.\text{user\_id} \land t.\text{status} \ne \text{DONE} \land t.\text{deadline\_utc} < t_{\text{now}}\}|$$
+
+---
+
+
 ## 9. Retry Backoff
 
 ### 9.1 Exponential Backoff with Full Jitter
