@@ -123,8 +123,7 @@ async def list_calendar_events(
         if target_fid is None:
             profile = await uow.faculty_profiles.get_by_user_id(principal.user_id)
             if profile is None:
-                msg = f"FacultyProfile with user_id '{principal.user_id}' was not found"
-                raise NotFoundError(msg)
+                return []
             target_fid = profile.id
 
         else:

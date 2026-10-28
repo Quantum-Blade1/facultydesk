@@ -1,7 +1,10 @@
 .PHONY: up down logs migrate seed demo lint typecheck test fmt graph diagrams backup restore vapid-keys
 
 up:
-	docker compose up -d --build
+	docker compose up -d
+
+build:
+	docker compose build
 
 down:
 	docker compose down --remove-orphans
