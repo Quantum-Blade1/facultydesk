@@ -813,6 +813,216 @@ erDiagram
     }
 ```
 
+#### 4.3.12 Collaboration Diagram: Meeting Circular Processing, Confirmation & Reminder Dispatch
+*Source: [`docs/diagrams/12-collaboration.svg`](docs/diagrams/12-collaboration.svg) | [`PNG`](docs/diagrams/12-collaboration.png)*
+
+```mermaid
+flowchart TD
+    %% UML Collaboration Diagram: Circular Ingestion, Confirmation & Reminder Dispatch
+    
+    subgraph Clients["Actors & Entry Points"]
+        HOD["hod : HOD"]
+        Faculty["faculty : Faculty"]
+    end
+
+    subgraph APILayer["API Boundary Tier"]
+        CRouter["router : CircularsRouter"]
+        UGuard["guard : UploadGuard"]
+    end
+
+    subgraph StorageInfra["File & Asynchronous Infrastructure"]
+        Minio["storage : MinioStorageService"]
+        Worker["worker : CeleryWorker"]
+    end
+
+    subgraph ApplicationTier["Application Use Cases & Services"]
+        ProcessUC["processUC : ProcessCircularUploadUseCase"]
+        ConfirmUC["confirmUC : ConfirmCircularUseCase"]
+        ClashDet["clashDetector : SweepLineClashDetector"]
+        Planner["planner : ReminderPlanner"]
+        Dispatcher["dispatcher : ReminderDispatcher"]
+    end
+
+    subgraph OCRPipeline["OCR & Parsing Engine"]
+        Preproc["preprocessor : OpenCVPreprocessor"]
+        OCR["ocr : DualPsmOcrEngine"]
+        Extractor["extractor : FieldExtractor"]
+        Resolver["resolver : InitialsResolver"]
+    end
+
+    subgraph DomainModel["Domain Entities & Aggregates"]
+        Circ["circular : Circular"]
+        Event["event : Event"]
+        Notif["notif : ScheduledNotification"]
+    end
+
+    subgraph Persistence["Persistence & Notification Delivery"]
+        UoW["uow : SqlAlchemyUnitOfWork"]
+        Notifier["notifier : CompositeNotifier"]
+    end
+
+    %% Phase 1: Upload and Ingestion
+    HOD -->|"1: upload_circular(file, dept_id)"| CRouter
+    CRouter -->|"1.1: sniff_and_validate(bytes)"| UGuard
+    CRouter -->|"1.2: store_file(uuid_key, bytes)"| Minio
+    CRouter -->|"1.3: create(dept_id, UPLOADED)"| Circ
+    CRouter -->|"1.4: enqueue(circular_id)"| Worker
+
+    %% Phase 2: Asynchronous OCR & Extraction
+    Worker -->|"1.5: execute(circular_id)"| ProcessUC
+    ProcessUC -->|"1.6: denoise_and_deskew(image)"| Preproc
+    ProcessUC -->|"1.7: ocr_dual_psm(image)"| OCR
+    ProcessUC -->|"1.8: extract_fields(ocr_text)"| Extractor
+    Extractor -->|"1.8.1: resolve_initials(tokens)"| Resolver
+    ProcessUC -->|"1.9: transition(NEEDS_REVIEW)"| Circ
+    ProcessUC -->|"1.10: commit()"| UoW
+
+    %% Phase 3: Review, Clash Detection & Confirmation
+    HOD -->|"2: confirm(meeting_data)"| ConfirmUC
+    ConfirmUC -->|"2.1: check_clashes(attendees, time_window)"| ClashDet
+    ConfirmUC -->|"2.2: create_meeting_event()"| Event
+    ConfirmUC -->|"2.3: transition(CONFIRMED)"| Circ
+    ConfirmUC -->|"2.4: commit()"| UoW
+    ConfirmUC -->|"2.5: plan_reminders(event)"| Planner
+    Planner -->|"2.6: create_notifications(offsets, channels)"| Notif
+    Planner -->|"2.7: save_notifications()"| UoW
+
+    %% Phase 4: Periodic Notification Dispatch
+    Worker -->|"3: trigger_periodic_dispatch()"| Dispatcher
+    Dispatcher -->|"3.1: claim_batch(SKIP_LOCKED)"| UoW
+    Dispatcher -->|"3.2: send(notif)"| Notifier
+    Dispatcher -->|"3.3: transition(SENT)"| Notif
+    Dispatcher -->|"3.4: commit()"| UoW
+    Notifier -->|"3.5: deliver_push_and_email()"| Faculty
+
+    classDef actor fill:#e0f2fe,stroke:#0369a1,stroke-width:2px,color:#0c4a6e;
+    classDef api fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f;
+    classDef app fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px,color:#581c87;
+    classDef domain fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#14532d;
+    classDef infra fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#0f172a;
+
+    class HOD,Faculty actor;
+    class CRouter,UGuard api;
+    class ProcessUC,ConfirmUC,ClashDet,Planner,Dispatcher app;
+    class Circ,Event,Notif domain;
+    class Minio,Worker,Preproc,OCR,Extractor,Resolver,UoW,Notifier infra;
+```
+
+#### 4.3.13 Package Diagram: System Modules, Layer Dependencies & Clean Architecture Boundaries
+*Source: [`docs/diagrams/13-package.svg`](docs/diagrams/13-package.svg) | [`PNG`](docs/diagrams/13-package.png)*
+
+```mermaid
+flowchart TB
+    %% UML Package Diagram: FacultyDesk System Architecture & Layer Dependencies
+
+    subgraph FrontendPkg["«subsystem» frontend (Presentation Tier)"]
+        direction TB
+        F_App["«package» app<br/>(Next.js App Router / Pages)"]
+        F_Comp["«package» components<br/>(AppShell, UI, FullCalendar)"]
+        F_Lib["«package» lib<br/>(api-client, auth-context, openapi-types)"]
+        F_App -.->|"«imports»"| F_Comp
+        F_App -.->|"«imports»"| F_Lib
+        F_Comp -.->|"«imports»"| F_Lib
+    end
+
+    subgraph BackendSys["«subsystem» backend (FastAPI / Celery Architecture)"]
+        direction TB
+
+        subgraph CorePkg["«package» core (Cross-Cutting Kernel)"]
+            direction TB
+            Core_Cfg["config"]
+            Core_Clock["clock (System/Frozen)"]
+            Core_Sec["security (JWT/Argon2)"]
+            Core_Err["errors"]
+            Core_Guard["upload_guard"]
+            Core_DB["db & redis session pools"]
+        end
+
+        subgraph DomainPkg["«layer» domain (Pure Domain Core - Zero Outward Dependencies)"]
+            direction TB
+            D_Entities["«module» entities<br/>(User, Event, Circular, Task, Notification)"]
+            D_VO["«module» value_objects<br/>(Initials, Role, Statuses, QuietHours)"]
+            D_Events["«module» events<br/>(TimetableConfirmed, CircularProcessed)"]
+            D_Repo["«module» repositories<br/>(UnitOfWork, EventRepo, TaskRepo Interfaces)"]
+            D_Err["«module» errors<br/>(ClashDetected, InvalidTransition)"]
+            
+            D_Entities -.->|"«uses»"| D_VO
+            D_Entities -.->|"«raises»"| D_Err
+            D_Repo -.->|"«references»"| D_Entities
+            D_Repo -.->|"«references»"| D_VO
+        end
+
+        subgraph AppPkg["«layer» application (Use Cases & Domain Orchestration)"]
+            direction TB
+            A_Auth["application.auth"]
+            A_Cal["application.calendar<br/>(ClashDetector, FreeSlots, Recurrence)"]
+            A_Circ["application.circulars"]
+            A_TT["application.timetable<br/>(Upload, Parse, Confirm)"]
+            A_Task["application.tasks<br/>(PriorityScore, Allocation)"]
+            A_Remind["application.reminders<br/>(Planner, Dispatcher, Maths)"]
+            A_Dir["application.directory"]
+            A_Sec["application.security<br/>(AuthorisationPolicy, Principal)"]
+        end
+
+        subgraph InfraPkg["«layer» infrastructure (Adapters & Concrete Technologies)"]
+            direction TB
+            I_DB["infrastructure.db<br/>(SQLAlchemy Models, SqlAlchemyUoW)"]
+            I_Parsers["infrastructure.parsers<br/>(XLSX, CSV, PDF, InitialsResolver)"]
+            I_OCR["infrastructure.ocr<br/>(OpenCV, Dual-PSM Tesseract, Extractor)"]
+            I_Notif["infrastructure.notifiers<br/>(EmailNotifier, WebPushNotifier)"]
+            I_Storage["infrastructure.storage<br/>(MinioStorage, BackupService)"]
+            I_Sec["infrastructure.security<br/>(RedisSlidingWindowLimiter)"]
+        end
+
+        subgraph APIPkg["«layer» api (Delivery & Routing Tier)"]
+            direction TB
+            API_Routers["api.routers<br/>(auth, calendar, circulars, tasks, timetables, directory)"]
+            API_Deps["api.deps<br/>(get_uow, get_current_principal, get_clock)"]
+            API_Routers -.->|"«uses»"| API_Deps
+        end
+
+        subgraph WorkersPkg["«layer» workers (Background Jobs & Schedulers)"]
+            direction TB
+            W_Tasks["workers.*_tasks<br/>(celery_app, circular_tasks, timetable_tasks, reminder_tasks)"]
+        end
+    end
+
+    %% Cross-Subsystem Communication
+    F_Lib -.->|"«REST/HTTPS» (OpenAPI)"| API_Routers
+
+    %% Clean Architecture Laws & Strict Package Dependencies
+    APIPkg ==>|"«invokes»"| AppPkg
+    WorkersPkg ==>|"«invokes»"| AppPkg
+    APIPkg -.->|"«injects via deps»"| InfraPkg
+    APIPkg -.->|"«validates»"| CorePkg
+
+    AppPkg ==>|"«depends only on»"| DomainPkg
+    AppPkg -.->|"«uses»"| CorePkg
+
+    InfraPkg -.->|"«implements interfaces»"| D_Repo
+    InfraPkg -.->|"«persists/maps»"| D_Entities
+    InfraPkg -.->|"«uses»"| CorePkg
+
+    WorkersPkg -.->|"«executes via»"| InfraPkg
+    WorkersPkg -.->|"«uses»"| CorePkg
+
+    classDef client fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0369a1;
+    classDef api fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#92400e;
+    classDef app fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#6b21a8;
+    classDef domain fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#15803d;
+    classDef infra fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#334155;
+    classDef core fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#991b1b;
+
+    class F_App,F_Comp,F_Lib client;
+    class API_Routers,API_Deps api;
+    class A_Auth,A_Cal,A_Circ,A_TT,A_Task,A_Remind,A_Dir,A_Sec app;
+    class D_Entities,D_VO,D_Events,D_Repo,D_Err domain;
+    class I_DB,I_Parsers,I_OCR,I_Notif,I_Storage,I_Sec infra;
+    class Core_Cfg,Core_Clock,Core_Sec,Core_Err,Core_Guard,Core_DB core;
+    class W_Tasks infra;
+```
+
+
 
 ## 5. How to run, test and deploy
 

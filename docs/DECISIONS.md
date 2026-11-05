@@ -588,10 +588,22 @@ flowchart TD
   - Risks and how they are contained:
     - Documentation drift as implementation evolves: contained by validating diagrams and traceability tables against active codebase classes and automated test suites.
 
+- **Stage 12 Addition: UML Collaboration and Package Diagrams**
+  - What we built:
+    - Collaboration Diagram (`docs/diagrams/12-collaboration.svg`, `.png`): Modelled the end-to-end circular ingestion, field extraction, HOD confirmation, sweep-line clash resolution, and atomic notification dispatch collaboration with message flows.
+    - Package Diagram (`docs/diagrams/13-package.svg`, `.png`): Formalized Clean Architecture layer boundaries (`domain`, `application`, `infrastructure`, `api`, `workers`, `core`, and `frontend`), illustrating strict compile-time dependency laws and interfaces inversion.
+    - Exported high-resolution `.svg` and 2x `.png` presentation diagrams for evaluator presentation.
+    - Embedded diagrams and explanatory documentation into Section 4.3 of `docs/PROJECT.md`.
+  - Why this way:
+    - Collaboration (Communication) diagrams show structural object relationships together with sequenced interaction messages, making the multi-tier interaction readable in a single unified diagram.
+    - Package diagrams prove to OOAD evaluators that the codebase adheres to strict Clean Architecture rules: Domain depends on nothing external, Application depends only on Domain, and Infrastructure implements Domain repository seams via Dependency Inversion.
+  - What we rejected and why:
+    - Mixing dynamic collaboration messages into the static package diagram: rejected to preserve UML separation of concerns between structure (Package) and interaction (Collaboration).
+
 ```mermaid
 flowchart TD
     subgraph Audit["Stage 12 Final Evaluation Pack"]
-        Diag["11 High-Res Diagrams<br/>docs/diagrams/ (SVG & PNG)"]
+        Diag["13 High-Res Diagrams<br/>docs/diagrams/ (SVG & PNG)"]
         Trace["Requirements Traceability Matrix<br/>7 Core Req &times; 5 Dimensions"]
         Eval["10-Min Evaluator Guide<br/>Actors, Layers, Patterns, States"]
         AuditSuite["Full Verification Suite<br/>Clean Boot + 83 Tests + 4 E2E Journeys"]
