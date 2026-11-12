@@ -1,0 +1,108 @@
+\begin{tikzpicture}[
+    assoc/.style={semithick},
+    comp/.style={semithick, {Diamond[length=3mm, width=2mm, fill=black]}-},
+    dep/.style={semithick, dashed, -{Stealth[length=2.2mm]}},
+    m/.style={font=\scriptsize, inner sep=1.5pt},
+    lbl/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt}
+  ]
+  \umlclass{dept}{0,0}{Department}{
+    + id : UUID\\
+    + code : str\\
+    + name : str}{}
+  \umlclass{fp}{4.8,0}{FacultyProfile}{
+    + id : UUID\\
+    + full\_name : str\\
+    + initials : Initials\\
+    + aliases : tuple[str]\\
+    + email : str\\
+    + ics\_token : str}{}
+  \umlclass{user}{9.6,0}{User}{
+    + id : UUID\\
+    + email : str\\
+    + password\_hash : str\\
+    + role : Role\\
+    + is\_active : bool}{
+    + quiet\_hours() : QuietHours}
+  \umlclass{rule}{14.4,0}{ReminderRule}{
+    + event\_kind : EventKind\\
+    + offsets\_minutes : tuple[int]\\
+    + channels : tuple[Channel]}{}
+
+  \umlclass{term}{0,-5.4}{AcademicTerm}{
+    + name : str\\
+    + start\_date : date\\
+    + end\_date : date\\
+    + timezone : str}{}
+  \umlclass{att}{4.8,-5.4}{EventAttendee}{
+    + event\_id : UUID\\
+    + faculty\_id : UUID\\
+    + response : AttendeeResponse}{}
+  \umlclass{event}{9.6,-5.4}{Event}{
+    + kind : EventKind\\
+    + title : str\\
+    + start\_utc : datetime\\
+    + end\_utc : datetime\\
+    + location : str\\
+    + source : EventSource}{
+    + reschedule(start, end)\\
+    + cancel(reason)\\
+    + add\_attendee(faculty\_id)}
+  \umlclass{task}{14.4,-5.4}{Task}{
+    + title : str\\
+    + deadline\_utc : datetime\\
+    + importance : int [1..5]\\
+    + category : TaskCategory\\
+    + status : TaskStatus}{
+    + update\_deadline(d)\\
+    + change\_status(s)}
+
+  \umlclass{hol}{0,-10.8}{Holiday}{
+    + date : date\\
+    + label : str}{}
+  \umlclass{slot}{4.8,-10.8}{TimetableSlot}{
+    + time\_slot : TimeSlot\\
+    + course\_id : UUID\\
+    + section\_id : UUID\\
+    + room\_id : UUID\\
+    + faculty\_id : UUID}{}
+  \umlclass{circ}{9.6,-10.8}{Circular}{
+    + file\_key : str\\
+    + ocr\_text : str\\
+    + extracted\_fields : dict\\
+    + confidence : float\\
+    + status : CircularStatus}{
+    + start\_processing()\\
+    + mark\_needs\_review(f, c)\\
+    + confirm(f) / reject(r) / fail(r)}
+  \umlclass{notif}{14.4,-10.8}{ScheduledNotification}{
+    + channel : Channel\\
+    + fire\_at\_utc : datetime\\
+    + idempotency\_key : str\\
+    + attempts : int\\
+    + status : NotificationStatus}{
+    + mark\_sending() / mark\_sent()\\
+    + mark\_failed(e) / retry()\\
+    + cancel()}
+
+  \umlclass{upload}{4.8,-16.0}{TimetableUpload}{
+    + file\_key : str\\
+    + status : UploadStatus\\
+    + parse\_report : dict}{
+    + start\_parsing()\\
+    + mark\_preview\_ready(r)\\
+    + confirm() / fail(r)}
+
+  \draw[assoc] (dept) -- node[m, above, pos=0.18] {1} node[m, above, pos=0.82] {*} node[lbl, below] {employs} (fp);
+  \draw[assoc] (user) -- node[m, above, pos=0.18] {1} node[m, above, pos=0.82] {0..1} node[lbl, below] {has} (fp);
+  \draw[assoc] (user) -- node[m, above, pos=0.18] {1} node[m, above, pos=0.82] {*} node[lbl, below] {owns} (rule);
+  \draw[comp] (term) -- node[m, right, pos=0.15] {1} node[m, right, pos=0.85] {*} (hol);
+  \draw[assoc] (fp) -- node[m, right, pos=0.15] {1} node[m, right, pos=0.85] {*} node[lbl, left] {attends} (att);
+  \draw[comp] (event) -- node[m, above, pos=0.2] {1} node[m, above, pos=0.8] {*} (att);
+  \draw[comp] (upload) -- node[m, right, pos=0.15] {1} node[m, right, pos=0.85] {*} (slot);
+  \draw[assoc] (slot.west) -- ++(-0.45,0) |- node[lbl, pos=0.25, left] {teaches} node[m, above, pos=0.93] {1} ([yshift=-4mm]fp.west);
+  \draw[dep] (slot.north east) -- node[lbl, sloped, above] {\guill{materialises}} (event.south west);
+  \draw[dep] (circ) -- node[lbl, right] {\guill{creates}} (event);
+  \draw[dep] (notif) -- node[lbl, sloped, above] {target} (event.south east);
+  \draw[dep] (notif) -- node[lbl, right] {target} (task);
+  \draw[assoc] (task.north) -- ++(0,0.5) -| node[m, right, pos=0.9] {1} node[lbl, pos=0.25, above] {assignee} ([xshift=9mm]user.south);
+\end{tikzpicture}

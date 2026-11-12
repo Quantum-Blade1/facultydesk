@@ -1,0 +1,57 @@
+\newsection{Objectives \& Problem Statement}{sec:objectives}
+
+\subsection{Problem Statement}
+A college department wants a system that turns its existing timetable files and paper meeting circulars into a personal, clash-aware calendar for every faculty member. The HOD uploads the department timetable; the system must identify each teacher from the initials written in the timetable cells and create that teacher's classes for the whole term, leaving out holidays. Any faculty member may upload a photo of a meeting circular; the system must read the date, time, venue and the names or initials of the invited faculty, and must not place a meeting on anyone's calendar until it is sure of the details or the HOD has confirmed them. Every faculty member must be reminded before each class, meeting and deadline by e-mail or phone notification, at times they choose, but not during their quiet hours, and never twice for the same reminder. The HOD must be able to assign documentation tasks to one teacher, a group or the whole department, see who has completed them, and be alerted when work is overdue.
+
+\subsection{Objectives}
+\begin{enumerate}
+  \item \textbf{Timetable ingestion:} read Excel, CSV and text-layer PDF timetables, expand merged period cells, resolve initials to faculty accounts, and generate the term's weekly classes while skipping declared holidays.
+  \item \textbf{Circular scanning:} accept photos, scans and PDFs of circulars, extract date, time, venue, agenda and attendees with OCR, and send uncertain extractions to an HOD review queue.
+  \item \textbf{Personal calendar:} show classes, meetings and deadlines in one view, detect overlapping events, find common free slots for a group, and publish a private ICS feed.
+  \item \textbf{Reminders:} deliver reminders by e-mail and web push at user-chosen lead times, honour quiet hours, retry failed sends and never send the same reminder twice.
+  \item \textbf{Documentation tasks:} create and assign tasks, rank them by a transparent priority score, alert before the deadline and escalate overdue work.
+  \item \textbf{Object-oriented design:} model the domain with classes that hold their own rules, keep business logic independent of frameworks, and document the design in UML.
+\end{enumerate}
+
+\subsection{Functional Requirements}
+\begin{xltabular}{\textwidth}{|p{1.4cm}|Y|p{2.6cm}|}
+\caption{Functional requirements}\\
+\hline
+\textbf{ID} & \textbf{Requirement} & \textbf{Actor} \\ \hline
+FR-01 & Log in with e-mail and password; access depends on role (Admin, HOD, Faculty). & All \\ \hline
+FR-02 & Manage departments, faculty accounts (with initials and aliases), terms and holidays; bulk import from CSV/XLSX. & Admin, HOD \\ \hline
+FR-03 & Upload a timetable, preview parsed slots and unresolved initials, and confirm. & HOD, Admin \\ \hline
+FR-04 & Generate weekly class events for the term, skipping holidays. & System \\ \hline
+FR-05 & Upload a circular photo, scan or PDF and extract meeting details by OCR. & Faculty, HOD \\ \hline
+FR-06 & Review, correct, confirm or reject extracted circulars. & HOD \\ \hline
+FR-07 & View the personal calendar; create, move and cancel events with clash warnings. & Faculty, HOD \\ \hline
+FR-08 & Find common free slots for a group of faculty. & HOD \\ \hline
+FR-09 & Subscribe to a private ICS calendar feed and rotate its secret token. & Faculty \\ \hline
+FR-10 & Set reminder lead times, channels and quiet hours; register for web push. & Faculty \\ \hline
+FR-11 & Send due reminders exactly once by e-mail and web push. & Scheduler \\ \hline
+FR-12 & Create personal tasks; assign tasks to a person, a group or the department from templates. & Faculty, HOD \\ \hline
+FR-13 & Rank tasks by priority, alert before deadlines, send daily overdue alerts and HOD escalations. & System \\ \hline
+FR-14 & Show the HOD a dashboard of completion rate and overdue tasks per faculty member. & HOD \\ \hline
+\end{xltabular}
+
+\subsection{Non-Functional Requirements}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.2cm}|Y|}
+\caption{Non-functional requirements}\\
+\hline
+\textbf{Quality} & \textbf{Requirement and how it is met} \\ \hline
+Correctness & All times stored in UTC and shown in India Standard Time; business rules covered by automated tests. \\ \hline
+Reliability & Reminders survive worker crashes (stale-send recovery) and are never duplicated (unique idempotency key). \\ \hline
+Security & Argon2id password hashing, 15-minute access tokens, rotating refresh tokens with reuse detection, role checks, rate-limited log-in. \\ \hline
+Safety of uploads & File type checked from its first bytes, 15 MB size limit, image pixel limit, PDF page limit. \\ \hline
+Usability & Mobile-first web app that installs on a phone; works with existing calendar apps through ICS. \\ \hline
+Maintainability & Four-layer architecture, one class per use case, strict type checking. \\ \hline
+Deployability & Runs on one department server with Docker Compose; no paid service needed. \\ \hline
+\end{xltabular}
+
+\subsection{Scope and Constraints}
+\begin{itemize}
+  \item Three human roles: Admin, HOD and Faculty. A background scheduler acts as a fourth, non-human actor.
+  \item Scanned timetable PDFs without a text layer are rejected with guidance; scanned circulars are read with OCR.
+  \item The system does not create timetables; it reads timetables that the department has already prepared.
+\end{itemize}

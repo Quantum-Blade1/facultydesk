@@ -1,0 +1,201 @@
+erDiagram
+    users ||--o{ audit_logs : "user_id"
+    departments ||--o{ courses : "department_id"
+    users ||--o| faculty_profiles : "user_id"
+    departments ||--o{ faculty_profiles : "department_id"
+    academic_terms ||--o{ holidays : "academic_term_id"
+    users ||--o{ push_subscriptions : "user_id"
+    users ||--o{ refresh_tokens : "user_id"
+    users ||--o{ reminder_rules : "user_id"
+    users ||--o{ scheduled_notifications : "user_id"
+    departments ||--o{ task_templates : "department_id"
+    users ||--o{ tasks : "assignee_id"
+    users ||--o{ tasks : "assigner_id"
+    departments ||--o{ timetable_uploads : "department_id"
+    academic_terms ||--o{ timetable_uploads : "academic_term_id"
+    events ||--o{ event_attendees : "event_id"
+    faculty_profiles ||--o{ event_attendees : "faculty_id"
+    courses ||--o{ sections : "course_id"
+    timetable_uploads ||--o{ timetable_slots : "timetable_upload_id"
+    courses ||--o{ timetable_slots : "course_id"
+    sections ||--o{ timetable_slots : "section_id"
+    rooms ||--o{ timetable_slots : "room_id"
+    faculty_profiles ||--o{ timetable_slots : "faculty_id"
+    academic_terms {
+        uuid id PK
+        string name
+        date start_date
+        date end_date
+        string timezone
+    }
+    circulars {
+        uuid id PK
+        string file_key
+        text ocr_text
+        jsonb extracted_fields
+        float confidence
+        string status
+        text failure_reason
+        timestamptz created_at_utc
+    }
+    departments {
+        uuid id PK
+        string code UK
+        string name
+        timestamptz created_at_utc
+    }
+    events {
+        uuid id PK
+        string kind
+        string title
+        timestamptz start_utc
+        timestamptz end_utc
+        string location
+        string source
+        uuid source_id
+        date recurrence_date
+        timestamptz created_at_utc
+    }
+    rooms {
+        uuid id PK
+        string code UK
+        string building
+        integer capacity
+    }
+    users {
+        uuid id PK
+        string email UK
+        text password_hash
+        string role
+        boolean is_active
+        time quiet_hours_start
+        time quiet_hours_end
+        timestamptz created_at_utc
+    }
+    audit_logs {
+        uuid id PK
+        uuid user_id FK
+        string action
+        string resource_type
+        string resource_id
+        jsonb payload
+        timestamptz timestamp_utc
+    }
+    courses {
+        uuid id PK
+        uuid department_id FK
+        string code
+        string name
+        integer credits
+    }
+    faculty_profiles {
+        uuid id PK
+        uuid user_id FK,UK
+        uuid department_id FK
+        string full_name
+        string initials
+        jsonb aliases
+        string email
+        string phone
+        string ics_token UK
+    }
+    holidays {
+        uuid id PK
+        uuid academic_term_id FK
+        date date
+        string label
+    }
+    push_subscriptions {
+        uuid id PK
+        uuid user_id FK
+        text endpoint
+        text p256dh
+        text auth
+        timestamptz created_at_utc
+    }
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        string token_hash UK
+        uuid family_id
+        boolean is_revoked
+        timestamptz expires_at_utc
+        timestamptz created_at_utc
+    }
+    reminder_rules {
+        uuid id PK
+        uuid user_id FK
+        string event_kind
+        jsonb offsets_minutes
+        jsonb channels
+    }
+    scheduled_notifications {
+        uuid id PK
+        uuid target_id
+        string target_kind
+        uuid user_id FK
+        string channel
+        timestamptz fire_at_utc
+        string idempotency_key UK
+        integer attempts
+        integer max_attempts
+        text last_error
+        timestamptz delivered_at_utc
+        string status
+    }
+    task_templates {
+        uuid id PK
+        uuid department_id FK
+        string title
+        text description
+        string category
+        integer default_lead_days
+        integer default_importance
+        timestamptz created_at_utc
+    }
+    tasks {
+        uuid id PK
+        string title
+        text description
+        timestamptz deadline_utc
+        integer importance
+        string category
+        string status
+        uuid assignee_id FK
+        uuid assigner_id FK
+        uuid parent_assignment_id
+        string recurrence
+        timestamptz created_at_utc
+    }
+    timetable_uploads {
+        uuid id PK
+        uuid department_id FK
+        uuid academic_term_id FK
+        string file_key
+        string status
+        jsonb parse_report
+        timestamptz uploaded_at_utc
+    }
+    event_attendees {
+        uuid id PK
+        uuid event_id FK
+        uuid faculty_id FK
+        string response
+    }
+    sections {
+        uuid id PK
+        uuid course_id FK
+        string name
+    }
+    timetable_slots {
+        uuid id PK
+        uuid timetable_upload_id FK
+        integer weekday
+        time start_time
+        time end_time
+        uuid course_id FK
+        uuid section_id FK
+        uuid room_id FK
+        uuid faculty_id FK
+        string source_cell_reference
+    }

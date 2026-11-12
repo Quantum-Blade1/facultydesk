@@ -1,0 +1,35 @@
+sequenceDiagram
+    actor F as Faculty / HOD
+    participant R as CircularsRouter
+    participant U as UploadCircularUseCase
+    participant W as Celery worker
+    participant P as ProcessCircularUseCase
+    participant O as OcrEngine
+    participant X as CircularExtractor
+    actor H as HOD
+    participant C as ConfirmCircularUseCase
+    F->>R: POST /api/circulars/upload (photo / PDF)
+    R->>U: execute(file)
+    U-->>R: Circular [UPLOADED]
+    R->>W: process_circular_upload(id)
+    R-->>F: 202 Accepted
+    W->>P: execute(id)
+    P->>P: start_processing() [PROCESSING]
+    alt PDF has a text layer
+        P->>P: read text directly
+    else photo or scan
+        P->>P: grey scale, denoise, threshold, deskew
+        P->>O: extract text (PSM 6, then PSM 4)
+        O-->>P: words and confidences
+    end
+    P->>X: extract date, time, venue, attendees
+    X-->>P: fields and field confidences
+    P->>P: review gate and duplicate check
+    P-->>W: [NEEDS_REVIEW]
+    H->>R: GET /api/circulars/review-queue
+    R-->>H: circulars with extracted fields
+    H->>R: POST /api/circulars/{id}/confirm (corrected fields)
+    R->>C: execute(id, fields)
+    C->>C: create MEETING event, plan reminders
+    C->>C: confirm() [CONFIRMED], commit
+    R-->>H: 200 OK (meeting created)

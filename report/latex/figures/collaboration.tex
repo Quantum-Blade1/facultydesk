@@ -1,0 +1,26 @@
+\begin{tikzpicture}[
+    obj/.style={rectangle, draw, semithick, fill=white, font=\footnotesize, minimum height=0.9cm, inner xsep=6pt, align=center},
+    link/.style={semithick},
+    msg/.style={font=\scriptsize, inner sep=2pt, align=center}
+  ]
+  \pic at (0,-0.4) {actor={hod : HOD}};
+  \node[obj] (router) at (6.0,0) {\underline{: CircularsRouter}};
+  \node[obj] (confirm) at (6.0,-3.4) {\underline{: ConfirmCircularUseCase}};
+  \node[obj] (circ) at (12.6,-3.4) {\underline{circular : Circular}};
+  \node[obj] (create) at (6.0,-7.2) {\underline{: CreateEventUseCase}};
+  \node[obj] (uow) at (12.6,-7.2) {\underline{uow : SqlAlchemyUnitOfWork}};
+  \node[obj] (clash) at (0.6,-11.2) {\underline{: CheckClashesUseCase}};
+  \node[obj] (event) at (6.0,-11.2) {\underline{event : Event}};
+  \node[obj] (planner) at (12.6,-11.2) {\underline{: ReminderPlanner}};
+
+  \draw[link] (0.5,0) -- node[msg, above] {1: POST /confirm(fields) $\rightarrow$} (router);
+  \draw[link] (router) -- node[msg, right] {1.1: execute(circular\_id, fields) $\downarrow$} (confirm);
+  \draw[link] (confirm) -- node[msg, above] {1.1.3: confirm(fields) $\rightarrow$} (circ);
+  \draw[link] (confirm.south east) -- node[msg, above right, pos=0.3] {1.1.1: circulars.get\_by\_id(id)\\1.1.4: circulars.save(circular)\\1.1.5: commit() $\searrow$} (uow.north west);
+  \draw[link] (confirm) -- node[msg, left] {1.1.2: execute(MEETING, start, end,\\venue, attendees,\\override=True) $\downarrow$} (create);
+  \draw[link] (create) -- node[msg, above, pos=0.4] {1.1.2.3:\\events.save(event) $\rightarrow$} (uow);
+  \draw[link] (create.south west) -- node[msg, above left, pos=0.45] {1.1.2.1: execute(start, end,\\attendee\_ids) $\swarrow$} (clash.north east);
+  \draw[link] (create) -- node[msg, left] {1.1.2.2: new Event(...),\\add\_attendee() $\downarrow$} (event);
+  \draw[link] (create.south east) -- node[msg, below right, pos=0.45] {1.1.2.4: plan\_event\_reminders\\(event) $\searrow$} (planner.north west);
+  \draw[link] (planner) -- node[msg, right] {$\uparrow$ 1.1.2.4.1:\\notifications.save(n)\\per attendee,\\offset, channel} (uow);
+\end{tikzpicture}

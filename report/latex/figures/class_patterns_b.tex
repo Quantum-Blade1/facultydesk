@@ -1,0 +1,32 @@
+\begin{tikzpicture}[
+    inh/.style={semithick, -{Triangle[open, length=3mm, width=3mm]}},
+    real/.style={semithick, dashed, -{Triangle[open, length=3mm, width=3mm]}},
+    dep/.style={semithick, dashed, -{Stealth[length=2.2mm]}},
+    lbl/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt}
+  ]
+  \umlclass{uow}{0,0}{<{}<abstract>{}>\\UnitOfWork}{
+    + events : EventRepository\\
+    + tasks : TaskRepository\\
+    + circulars : CircularRepository\\
+    + notifications : NotificationRepository}{
+    + commit() / rollback()}
+  \umlclass{sqlauow}{0,-4.6}{SqlAlchemyUnitOfWork}{
+    - session : AsyncSession}{+ commit() / rollback()}
+  \draw[inh] (sqlauow) -- (uow);
+  \umlclass{disp}{5.8,0}{ReminderDispatcher}{
+    - clock : Clock\\
+    - notifier : Notifier}{
+    + dispatch\_due(uow, batch) : int\\
+    + recover\_stale\_sending(uow) : int}
+  \umlclass{notif}{5.8,-4.6}{<{}<abstract>{}>\\Notifier}{}{+ send(...)}
+  \umlclass{clock}{11.6,0}{<{}<protocol>{}>\\Clock}{}{+ now() : datetime}
+  \umlclass{sysclock}{9.6,-4.6}{SystemClock}{}{+ now()}
+  \umlclass{frozen}{13.6,-4.6}{FrozenClock}{}{+ now()}
+  \draw[real] (sysclock.north) -- ++(0,0.9) -| (clock.south);
+  \draw[real] (frozen.north) -- ++(0,0.9) -| (clock.south);
+  \draw[dep] (disp) -- node[lbl, above] {uses} (uow);
+  \draw[dep] (disp) -- node[lbl, above] {uses} (clock);
+  \draw[dep] (disp) -- node[lbl, right] {uses} (notif);
+  \node[font=\footnotesize\bfseries, anchor=south] at (0,2.1) {Repository + Unit of Work};
+  \node[font=\footnotesize\bfseries, anchor=south] at (11.6,2.1) {Dependency injection of Clock};
+\end{tikzpicture}

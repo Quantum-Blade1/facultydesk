@@ -1,0 +1,35 @@
+\begin{tikzpicture}[
+    inh/.style={semithick, -{Triangle[open, length=3mm, width=3mm]}},
+    dep/.style={semithick, dashed, -{Stealth[length=2.2mm]}},
+    agg/.style={semithick, {Diamond[open, length=3mm, width=2mm]}-{Stealth[length=2.2mm]}},
+    lbl/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt}
+  ]
+  \umlclass{factory}{0,3.4}{TimetableParserFactory}{}{
+    + get\_parser(content, filename)\\
+    \phantom{+} : TimetableParser}
+  \umlclass{parser}{0,0}{<{}<abstract>{}>\\TimetableParser}{}{
+    + parse(content) : ParseResult}
+  \umlclass{xlsx}{-4.4,-3.4}{XlsxTimetableParser}{}{+ parse(content)}
+  \umlclass{csv}{0,-3.4}{CsvTimetableParser}{}{+ parse(content)}
+  \umlclass{pdf}{4.4,-3.4}{PdfTimetableParser}{}{+ parse(content)}
+  \draw[dep] (factory) -- node[lbl, right] {<{}<creates>{}>} (parser);
+  \draw[inh] (xlsx.north) -- ++(0,0.6) -| (parser.south);
+  \draw[inh] (csv.north) -- (parser.south);
+  \draw[inh] (pdf.north) -- ++(0,0.6) -| (parser.south);
+  \node[font=\footnotesize\bfseries, anchor=south] at (0,5.0) {Strategy + Factory};
+
+  \umlclass{composite}{11.4,3.4}{CompositeNotifier}{
+    - email : EmailNotifier\\
+    - push : WebPushNotifier}{+ send(...)}
+  \umlclass{notifier}{11.4,0}{<{}<abstract>{}>\\Notifier}{}{
+    + send(notification, payload, ...)}
+  \umlclass{email}{9.2,-3.4}{EmailNotifier}{
+    - hostname, port : SMTP}{+ send(...)}
+  \umlclass{push}{13.6,-3.4}{WebPushNotifier}{
+    - vapid\_private\_key : str}{+ send(...)}
+  \draw[inh] (composite.south) -- (notifier.north);
+  \draw[agg] (composite.east) -- ++(0.7,0) |- node[lbl, pos=0.25, right] {2} (notifier.east);
+  \draw[inh] (email.north) -- ++(0,0.6) -| (notifier.south);
+  \draw[inh] (push.north) -- ++(0,0.6) -| (notifier.south);
+  \node[font=\footnotesize\bfseries, anchor=south] at (11.4,5.0) {Strategy + Composite};
+\end{tikzpicture}

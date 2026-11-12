@@ -1,0 +1,135 @@
+\newsection{Object-Oriented Analysis, Design \& Architecture}{sec:ooad}
+
+\subsection{Object-Oriented Analysis}
+Object-oriented analysis finds the classes of the problem domain before any design decision is made. We used the noun analysis method [2]: mark the nouns of the problem statement, classify them, filter out the ones that are not classes, and add classes that domain knowledge requires.
+
+\head{Step 1: Potential Objects (Nouns and Noun Phrases)}
+From the problem statement in Section~\ref{sec:objectives}: department, system, calendar, faculty member, HOD, timetable, timetable file, cell, initials, teacher, class, term, holiday, photo, meeting circular, date, time, venue, name, meeting, details, reminder, e-mail, phone notification, quiet hours, documentation task, group, deadline, work, alert.
+
+\head{Step 2: Classification}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.2cm}|Y|}
+\caption{Classification of candidate objects}\\
+\hline
+\textbf{Category} & \textbf{Candidates} \\ \hline
+People and roles & faculty member, teacher, HOD, group \\ \hline
+Organisations & department \\ \hline
+Things and documents & timetable file, cell, photo, meeting circular, e-mail, phone notification \\ \hline
+Concepts & calendar, initials, quiet hours, details, term \\ \hline
+Events & class, meeting, holiday, deadline, reminder, alert, documentation task \\ \hline
+Attributes & date, time, venue, name \\ \hline
+\end{xltabular}
+
+\head{Step 3: Filtering}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.6cm}|p{3.4cm}|Y|}
+\caption{Filtering of candidates}\\
+\hline
+\textbf{Candidate} & \textbf{Decision} & \textbf{Reason} \\ \hline
+system & Removed & It is the system itself, not a domain object. \\ \hline
+teacher, faculty member & Merged $\rightarrow$ FacultyProfile & Same person; profile holds initials and aliases. \\ \hline
+HOD, Admin & Role of User & They differ only in permissions (\texttt{Role} value). \\ \hline
+class, meeting, deadline & Merged $\rightarrow$ Event & One interval type with a \texttt{kind}; clash checks and reminders treat them alike. \\ \hline
+reminder, alert & Merged $\rightarrow$ ScheduledNotification & One planned send with its own life cycle. \\ \hline
+date, time, venue, name & Attributes & Properties of Event or FacultyProfile. \\ \hline
+initials, quiet hours & Value objects & Defined only by their value; must validate themselves. \\ \hline
+cell & Merged $\rightarrow$ TimetableSlot & A parsed cell is one weekly slot. \\ \hline
+e-mail, phone notification & Channel value & Delivery channel of a notification. \\ \hline
+calendar, details, group & Removed & A view over events, too vague, or a set of profiles. \\ \hline
+\end{xltabular}
+
+\head{Step 4: Classes Added from Domain Knowledge}
+\begin{itemize}
+  \item \textbf{User} -- the log-in account, separate from the faculty profile (an Admin may have no profile).
+  \item \textbf{TimetableUpload} -- one uploaded file with its parse report and status.
+  \item \textbf{EventAttendee} -- links a faculty member to an event with a response.
+  \item \textbf{ReminderRule} -- a user's lead times and channels for each kind of event.
+  \item \textbf{AcademicTerm} -- the term dates and time zone that bound class generation.
+\end{itemize}
+
+\head{Step 5: Final Domain Classes}
+Department, User, FacultyProfile, AcademicTerm, Holiday, Course, Section, Room, TimetableUpload, TimetableSlot, Event, EventAttendee, Circular, ScheduledNotification, ReminderRule, PushSubscription, Task, TaskTemplate, AuditLog, RefreshToken; value objects Initials, TimeSlot and QuietHours.
+
+\subsection{Object-Oriented Design}
+
+\head{Layered (Clean) Architecture}
+The backend is divided into four layers [5]. Dependencies point inwards, towards the domain.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  lay/.style={rectangle, draw, semithick, align=center, font=\footnotesize, minimum width=12.5cm, minimum height=1.25cm, text width=12cm},
+  ar/.style={semithick, dashed, -{Stealth[length=2.2mm]}}]
+  \node[lay] (api) at (0,0) {\textbf{API layer} (\texttt{api/}) and \textbf{workers} (\texttt{workers/})\\FastAPI routers, request/response schemas, dependency wiring; Celery tasks};
+  \node[lay] (app) at (0,-2.2) {\textbf{Application layer} (\texttt{application/})\\one class per use case; clash detection, recurrence, reminder and task algorithms};
+  \node[lay] (dom) at (0,-4.4) {\textbf{Domain layer} (\texttt{domain/})\\entities, value objects, domain events, errors, repository interfaces --- no framework imports};
+  \node[lay] (inf) at (0,-6.6) {\textbf{Infrastructure layer} (\texttt{infrastructure/})\\SQLAlchemy repositories, parsers, OCR, notifiers, MinIO storage, rate limiter, backup};
+  \draw[ar] (api) -- node[right, font=\scriptsize] {uses} (app);
+  \draw[ar] (app) -- node[right, font=\scriptsize] {uses} (dom);
+  \draw[ar] (inf) -- node[right, font=\scriptsize] {implements interfaces of domain} (dom);
+\end{tikzpicture}
+\caption{Layered architecture of the backend}
+\label{fig:layers}
+\end{figure}
+
+Use cases receive their collaborators through their constructors (dependency injection). The same \texttt{ProcessCircularUseCase} therefore runs in a worker in production and in a test with a test database, and the same \texttt{ReminderDispatcher} runs with \texttt{SystemClock} in production and with \texttt{FrozenClock} in tests. As shown in the package diagram, four application files still import infrastructure classes directly; the domain layer has no outward imports at all.
+
+\head{Design Principles Applied}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.6cm}|Y|}
+\caption{Design principles}\\
+\hline
+\textbf{Principle} & \textbf{How FacultyDesk applies it} \\ \hline
+Single responsibility & Each use-case class serves one goal; \texttt{InitialsResolver} only resolves initials; \texttt{CircularExtractor} only extracts fields. \\ \hline
+Open--closed & A new timetable format needs a new \texttt{TimetableParser} subclass and one line in the factory; a new channel (such as SMS) needs a new \texttt{Notifier}. \\ \hline
+Liskov substitution & Any \texttt{Notifier} can be given to the dispatcher; tests substitute frozen-time and test-database objects. \\ \hline
+Interface segregation & Eighteen small repository interfaces, one per aggregate, instead of one large data-access class. \\ \hline
+Dependency inversion & Use cases depend on \texttt{UnitOfWork}, \texttt{Notifier} and \texttt{Clock} abstractions, not on SQLAlchemy or SMTP. \\ \hline
+Information expert (GRASP) & \texttt{QuietHours} decides whether a time is quiet; \texttt{Circular} decides which status change is legal; \texttt{Task} validates its own importance and deadline. \\ \hline
+\end{xltabular}
+
+\head{Design Patterns}
+The patterns follow the catalogues of Gamma \emph{et al.} [3] and Fowler [4]. Figures~\ref{fig:classpatterns} and \ref{fig:classpatternsb} show the classes involved.
+
+{\small
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{2.6cm}|p{4.6cm}|Y|}
+\caption{Design patterns used}\\
+\hline
+\textbf{Pattern} & \textbf{Classes} & \textbf{Problem it solves} \\ \hline
+Repository & EventRepository, TaskRepository and 16 others & Hides SQL behind collection-like interfaces so domain code stays storage-free. \\ \hline
+Unit of Work & UnitOfWork, SqlAlchemyUnitOfWork & Saves a circular, its meeting, attendees and reminders in one transaction. \\ \hline
+Strategy & TimetableParser subclasses; Notifier subclasses & Swaps the parsing algorithm by file type and the delivery method by channel. \\ \hline
+Factory & TimetableParserFactory & Chooses the parser from the file's first bytes, not from its name. \\ \hline
+Composite & CompositeNotifier & Lets the dispatcher send through e-mail and push as if they were one notifier. \\ \hline
+State & Circular, ScheduledNotification, TimetableUpload & Encodes legal life cycles as transition tables; illegal moves raise errors. \\ \hline
+Domain events & EventScheduled, EventRescheduled, EventCancelled, TaskDeadlineChanged, TimetableConfirmed & Records what happened to an entity; reminder re-planning reacts to rescheduling and cancellation. \\ \hline
+\end{xltabular}}
+
+\begin{figure}[!htbp]
+  \centering
+  \resizebox{\textwidth}{!}{\input{figures/class_patterns_a}}
+  \caption{Class diagram of the Strategy, Factory and Composite patterns}
+  \label{fig:classpatterns}
+\end{figure}
+
+\begin{figure}[!htbp]
+  \centering
+  \resizebox{\textwidth}{!}{\input{figures/class_patterns_b}}
+  \caption{Class diagram of the Repository and Unit of Work patterns and the injected Clock}
+  \label{fig:classpatternsb}
+\end{figure}
+
+\subsection{Architecture Decisions}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.4cm}|Y|}
+\caption{Architecture decisions}\\
+\hline
+\textbf{Decision} & \textbf{Reason} \\ \hline
+Background workers for slow work & OCR and timetable parsing take seconds; the API stores the file, replies \texttt{202 Accepted} and a Celery worker does the work, so every web request stays short. \\ \hline
+UTC storage, local expansion & Every timestamp is stored in UTC. Weekly recurrence is expanded in local time (Asia/Kolkata) and then converted, so a 9:00 class stays at 9:00. \\ \hline
+Injected clock & No code reads the system time directly; an injected \texttt{Clock} makes every time rule testable. \\ \hline
+Exactly-once reminders & Key $k = \mathrm{SHA256}(\text{target}\,\|\,\text{user}\,\|\,\text{offset}\,\|\,\text{channel})$ with a unique database constraint; rows claimed with \texttt{FOR UPDATE SKIP LOCKED}. \\ \hline
+Human in the loop & No OCR result reaches a calendar unless it passes the review gate and auto-confirmation is enabled; otherwise the HOD confirms it. \\ \hline
+One authorisation policy & One \texttt{AuthorisationPolicy} class decides what Admin, HOD and Faculty may do, so permission rules live in one place. \\ \hline
+\end{xltabular}

@@ -1,0 +1,60 @@
+\begin{tikzpicture}[
+    comp/.style={rectangle, draw, semithick, fill=#1, align=center, font=\footnotesize, minimum width=3.6cm, minimum height=1.25cm, inner sep=4pt},
+    comp/.default=white,
+    ext/.style={rectangle, draw, semithick, dashed, fill=white, align=center, font=\footnotesize, minimum width=2.9cm, minimum height=1.0cm},
+    con/.style={semithick, -{Stealth[length=2.2mm]}},
+    ball/.style={circle, draw, semithick, fill=white, minimum size=2.6mm, inner sep=0pt},
+    ilbl/.style={font=\scriptsize\itshape, inner sep=1.5pt, align=center}
+  ]
+  \newcommand{\cname}[2]{{\scriptsize\guill{component}}\\\textbf{#1}\\{\scriptsize #2}}
+
+  \node[comp=white] (fe) at (0,0) {\cname{Web client}{Next.js PWA, service worker}};
+  \node[comp=white] (api) at (6.4,0) {\cname{API}{FastAPI routers, AuthorisationPolicy}};
+  \node[comp=white] (worker) at (12.8,0) {\cname{Worker}{Celery tasks}};
+  \node[comp=white] (beat) at (12.8,3.0) {\cname{Scheduler}{Celery Beat}};
+  \node[comp=white] (uc) at (9.6,-3.4) {\cname{Use cases}{application layer}};
+  \node[comp=white] (dom) at (9.6,-6.6) {\cname{Domain model}{entities, value objects, interfaces}};
+
+  \node[comp=white] (persist) at (0,-9.8) {\cname{Persistence}{SqlAlchemyUnitOfWork}};
+  \node[comp=white] (store) at (4.8,-9.8) {\cname{Object storage}{MinioStorageService}};
+  \node[comp=white] (ocr) at (9.6,-9.8) {\cname{OCR and parsing}{OcrEngine, parsers}};
+  \node[comp=white] (notify) at (14.4,-9.8) {\cname{Notifications}{CompositeNotifier}};
+
+  \node[ext] (pg) at (0,-12.6) {PostgreSQL 16};
+  \node[ext] (minio) at (4.8,-12.6) {MinIO};
+  \node[ext] (tess) at (9.6,-12.6) {Tesseract};
+  \node[ext] (smtp) at (14.4,-12.6) {SMTP / Web Push\\services};
+  \node[ext] (redis) at (19.0,0) {Redis 7};
+  \node[ext] (cal) at (0,3.0) {External calendar\\(Google, Apple)};
+
+  \node[ball] (restball) at (3.2,0) {};
+  \node[ilbl, above] at (restball.north) {REST API};
+  \draw[semithick] (api.west) -- (restball);
+  \draw[con] (fe.east) -- (restball.west);
+  \node[ball] (icsball) at (6.4,3.0) {};
+  \node[ilbl, above] at (icsball.north) {ICS feed};
+  \draw[semithick] (api.north) -- (icsball);
+  \draw[con] (cal.east) -- (icsball.west);
+
+  \draw[con] (api.south) |- node[ilbl, pos=0.25, left] {calls} (uc.west);
+  \draw[con] (worker.south) |- node[ilbl, pos=0.25, right] {calls} (uc.east);
+  \draw[con] (beat) -- node[ilbl, right] {schedules} (worker);
+  \draw[con] (api.east) -- node[ilbl, above] {enqueue} (worker.west);
+  \draw[con] (worker.east) -- (redis.west);
+  \draw[con] (uc) -- (dom);
+
+  \foreach \c/\i in {persist/UnitOfWork, store/StorageService, ocr/OcrEngine, notify/Notifier} {
+    \node[ball] (\c b) at ($(\c.north)+(0,0.75)$) {};
+    \node[ilbl, right] at (\c b.east) {\i};
+    \draw[semithick] (\c.north) -- (\c b);
+  }
+  \draw[con] (dom.south west) -- ++(0,-0.5) -| (persistb.north);
+  \draw[con] (uc.south west) -- ++(-0.4,-0.5) -| (storeb.north);
+  \draw[con] (uc.south east) -- ++(1.2,-0.5) -| (notifyb.north);
+  \draw[con] ([yshift=-3mm]uc.east) -- (13.0,-3.7) -- (13.0,-8.0) -| (ocrb.north);
+
+  \draw[con] (persist) -- (pg);
+  \draw[con] (store) -- (minio);
+  \draw[con] (ocr) -- (tess);
+  \draw[con] (notify) -- (smtp);
+\end{tikzpicture}

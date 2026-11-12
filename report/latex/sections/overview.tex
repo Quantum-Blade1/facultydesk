@@ -1,0 +1,137 @@
+\newsection{Object Basics and Project Overview}{sec:overview}
+
+\subsection{Object Basics}
+Object-oriented analysis and design views a system as a set of objects that work together. Each object holds data and the operations that act on that data. The table below defines each basic concept and shows where it appears in FacultyDesk.
+
+{\small
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{2.6cm}|Y|Y|}
+\caption{Object basics with project examples}\\
+\hline
+\textbf{Concept} & \textbf{Meaning} & \textbf{Example in FacultyDesk} \\ \hline
+Object & A thing with identity, state and behaviour. & One uploaded meeting circular, with its text, extracted fields and status. \\ \hline
+Class & A template that defines the attributes and operations of similar objects. & \texttt{Circular} defines \texttt{ocr\_text}, \texttt{confidence}, \texttt{status} and \texttt{confirm()}, \texttt{reject()}. \\ \hline
+Encapsulation & Data is changed only through the object's own operations. & A \texttt{ScheduledNotification} changes status only through \texttt{mark\_sending()}, \texttt{mark\_sent()}, \texttt{mark\_failed()}, \texttt{retry()} and \texttt{cancel()}; any illegal change raises an error. \\ \hline
+Abstraction & Showing what an object does and hiding how. & \texttt{UnitOfWork} and the repository interfaces describe what storage must do, not how the database does it. \\ \hline
+Inheritance & A class reuses and specialises another class. & \texttt{XlsxTimetableParser}, \texttt{CsvTimetableParser} and \texttt{PdfTimetableParser} inherit from \texttt{TimetableParser}. \\ \hline
+Polymorphism & The same call behaves differently depending on the object. & \texttt{parser.parse(content)} reads Excel, CSV or PDF; \texttt{notifier.send(...)} sends an e-mail or a push message. \\ \hline
+Value object & An immutable object defined only by its value. & \texttt{Initials} (2 to 5 capital letters), \texttt{TimeSlot}, \texttt{QuietHours}. \\ \hline
+Association & A structural link between classes. & A \texttt{FacultyProfile} belongs to a \texttt{Department}. \\ \hline
+Composition & A whole that owns its parts; parts cannot exist alone. & An \texttt{Event} owns its \texttt{EventAttendee} objects; an \texttt{AcademicTerm} owns its \texttt{Holiday} objects. \\ \hline
+\end{xltabular}}
+
+\subsection{System Overview}
+Figure~\ref{fig:arch} shows the overall structure. Users work in a web application in the browser or on the phone. Requests reach the FastAPI server through a Caddy reverse proxy. Slow work (reading timetables, OCR, sending reminders) runs in Celery workers, and Celery Beat starts periodic jobs. Data lives in PostgreSQL; uploaded files and backups live in MinIO.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  box/.style={rectangle, draw, semithick, align=center, font=\footnotesize, minimum width=3.4cm, minimum height=1.1cm},
+  db/.style={cylinder, shape border rotate=90, aspect=0.25, draw, semithick, align=center, font=\footnotesize, minimum width=2.6cm, minimum height=1.3cm},
+  ar/.style={semithick, -{Stealth[length=2.2mm]}},
+  l/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+  \node[box] (user) at (0,0) {Faculty / HOD / Admin\\(browser or phone app)};
+  \node[box] (caddy) at (5,0) {Caddy\\reverse proxy (HTTPS)};
+  \node[box] (fe) at (10,1.2) {Next.js frontend};
+  \node[box] (api) at (10,-1.2) {FastAPI backend};
+  \node[box] (worker) at (5,-3.8) {Celery worker};
+  \node[box] (beat) at (0,-3.8) {Celery Beat\\(scheduler)};
+  \node[db] (pg) at (10,-4.4) {PostgreSQL};
+  \node[db] (redis) at (5,-6.6) {Redis};
+  \node[db] (minio) at (13.4,-4.4) {MinIO};
+  \node[box] (mail) at (0,-6.6) {E-mail (SMTP) and\\Web Push services};
+  \draw[ar] (user) -- node[l, above] {HTTPS} (caddy);
+  \draw[ar] (caddy) -- (fe);
+  \draw[ar] (caddy) -- node[l, below left] {/api} (api);
+  \draw[ar] (api) -- (pg);
+  \draw[ar] (api.east) -| (minio);
+  \draw[ar] (api) -- node[l, sloped, above] {enqueue job} (worker);
+  \draw[ar] (beat) -- node[l, above] {every 30 s} (worker);
+  \draw[ar] (worker) -- (pg);
+  \draw[ar] (worker) -- (redis);
+  \draw[ar] (worker) -- node[l, sloped, above] {send} (mail);
+\end{tikzpicture}
+\caption{High-level architecture of FacultyDesk}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Project Modules}
+The system is divided into eight modules. Each module has its own use-case classes, its own set of API endpoints and its own screens, and all modules share one domain model.
+
+\head{Module 1: Identity and Access}
+Handles log-in, log-out and password change. Passwords are hashed with Argon2id. A short-lived access token (15 minutes) is kept in memory, and a refresh token (7 days) is kept in an httpOnly cookie and replaced on every use; if an old refresh token is presented again, the whole token family is revoked. One \texttt{AuthorisationPolicy} class decides what each role may do. Log-in attempts are rate-limited per IP address and per account.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{LoginUseCase}, \texttt{RefreshTokenUseCase}, \texttt{LogoutUseCase}, \texttt{AuthorisationPolicy}, \texttt{Principal}.\par}
+
+\head{Module 2: Directory and Academic Calendar}
+Maintains departments, faculty accounts with their initials and aliases, academic terms and holidays. Faculty can be imported in bulk from CSV or Excel with a row-by-row validation report.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{CreateFacultyUseCase}, \texttt{UpdateFacultyUseCase}, \texttt{BulkImportFacultyUseCase}, \texttt{ManageTermsUseCase}.\par}
+
+\head{Module 3: Timetable Ingestion}
+Accepts the department timetable, chooses a parser from the file's first bytes, expands merged period cells, splits co-teacher cells such as \texttt{KKS/RNS}, and resolves each initials token in three tiers (exact initials, alias, fuzzy match). The HOD sees a preview and the unresolved tokens before confirming.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{UploadTimetableUseCase}, \texttt{ParseTimetableUseCase}, \texttt{ConfirmTimetableUseCase}, \texttt{TimetableParserFactory}, \texttt{InitialsResolver}.\par}
+
+\head{Module 4: Circular Scanning}
+Reads meeting circulars. Images are cleaned (grey scale, noise removal, thresholding, deskewing) and read by Tesseract. The extractor finds date, time, venue, title, agenda and attendees, and a review gate decides whether the circular may be confirmed automatically or needs the HOD.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{UploadCircularUseCase}, \texttt{ProcessCircularUseCase}, \texttt{ConfirmCircularUseCase}, \texttt{RejectCircularUseCase}, \texttt{OcrEngine}, \texttt{CircularExtractor}.\par}
+
+\head{Module 5: Calendar}
+Keeps every class, meeting and deadline as an \texttt{Event} with attendees. It detects clashes with a sweep-line algorithm, finds common free slots, publishes the ICS feed, and every night extends class events 21 days ahead.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{CreateEventUseCase}, \texttt{UpdateEventUseCase}, \texttt{SweepLineClashDetector}, \texttt{FreeSlotFinder}, \texttt{GenerateIcsFeedUseCase}, \texttt{MaterialiseTimetableEventsUseCase}.\par}
+
+\head{Module 6: Reminders and Notifications}
+Plans one \texttt{ScheduledNotification} per attendee, lead time and channel, shifts reminders out of quiet hours, and sends due reminders every 30 seconds by e-mail and web push.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{ReminderPlanner}, \texttt{ReminderDispatcher}, \texttt{CompositeNotifier}, \texttt{EmailNotifier}, \texttt{WebPushNotifier}.\par}
+
+\head{Module 7: Tasks and Escalation}
+Manages personal and assigned documentation tasks with templates (CO--PO mapping, IA marks upload, attendance shortage report, lab manual update, course file submission). Tasks are ranked by a priority score; alerts go out 72 hours, 24 hours and 2 hours before the deadline and daily after it, and overdue work is escalated to the HOD.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{CreateTaskUseCase}, \texttt{AssignTaskUseCase}, \texttt{CompleteTaskUseCase}, \texttt{ReopenTaskUseCase}, \texttt{GetHodDashboardUseCase}.\par}
+
+\head{Module 8: Operations}
+Checks every upload for type, size and decompression attacks, backs up the database every night to object storage with 14-day retention, and reports reminder delivery metrics to the Admin.\par\smallskip
+{\RaggedRight\textit{Main classes:} \texttt{BackupService}, upload guard, metrics endpoints.\par}
+
+\subsection{Business Aspects}
+
+\head{Stakeholders and Benefits}
+\needspace{7\baselineskip}
+{\small\begin{xltabular}{\textwidth}{|p{3.2cm}|Y|Y|}
+\caption{Stakeholders and benefits}\\
+\hline
+\textbf{Stakeholder} & \textbf{Need} & \textbf{Benefit from FacultyDesk} \\ \hline
+Faculty member & Know every class, meeting and deadline on time. & One calendar, reminders on phone and e-mail, clash warnings. \\ \hline
+HOD & Distribute the timetable and meetings; track documentation. & Upload once for everyone; dashboard of completion and overdue work. \\ \hline
+Department office & Avoid retyping schedules and chasing people. & Works directly from the existing timetable file and circular. \\ \hline
+College management & Accreditation work (NBA, NAAC) done on time. & Record of assigned and completed documentation tasks. \\ \hline
+\end{xltabular}}
+
+\head{Business Process: Before and After}
+\needspace{7\baselineskip}
+{\small\begin{xltabular}{\textwidth}{|p{3.0cm}|Y|Y|}
+\caption{Business process comparison}\\
+\hline
+\textbf{Activity} & \textbf{Before (manual)} & \textbf{With FacultyDesk} \\ \hline
+Timetable revision & New sheet circulated; each teacher re-reads it. & HOD uploads the file once; everyone's classes regenerate. \\ \hline
+Meeting circular & Paper notice or chat photo. & Photo uploaded, OCR proposes the meeting, HOD confirms, attendees are reminded. \\ \hline
+Documentation deadline & Verbal or e-mail reminder. & Task with priority, alerts at 72 h, 24 h and 2 h, daily overdue alerts, HOD escalation. \\ \hline
+Clash between duties & Found on the day. & Shown when the event is created; free-slot finder suggests another time. \\ \hline
+\end{xltabular}}
+
+\head{Feasibility}
+\begin{itemize}
+  \item \textbf{Technical:} built entirely with mature open-source components; runs on one server with Docker Compose.
+  \item \textbf{Economic:} no licence cost. Running cost is one server (a department machine or a cloud virtual machine) and an SMTP relay for e-mail; web push uses the browser vendors' free push services. Hardware cost and time saved were not measured; they need a pilot in a department.
+  \item \textbf{Operational:} faculty keep using the documents they already produce; the app installs on phones and exports to existing calendar apps.
+\end{itemize}
+
+\head{Risks and Controls}
+\needspace{7\baselineskip}
+{\small\begin{xltabular}{\textwidth}{|p{4.0cm}|Y|}
+\caption{Risks and controls}\\
+\hline
+\textbf{Risk} & \textbf{Control in the design} \\ \hline
+Wrong meeting from a bad OCR read & Review gate: document confidence $\ge 70$, date and time confidence $\ge 0.85$, every attendee resolved, no duplicate; otherwise the HOD reviews. \\ \hline
+Class assigned to the wrong teacher & Exact initials first, then alias, then fuzzy match only above similarity 0.85 with a 0.10 margin; ambiguous tokens are reported, never guessed. \\ \hline
+Duplicate or lost reminders & Unique idempotency key per (target, user, offset, channel); row locking with \texttt{SKIP LOCKED}; recovery of stuck sends. \\ \hline
+Exposure of personal data & Hashed passwords, short-lived tokens, role checks, private ICS links that can be rotated. \\ \hline
+Data loss & Nightly compressed database backup with 14-day retention and a tested restore. \\ \hline
+\end{xltabular}}

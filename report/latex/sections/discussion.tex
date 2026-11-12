@@ -1,0 +1,26 @@
+\newsection{Discussion of Results}{sec:discussion}
+
+\subsection{What the Results Show}
+The 83 backend tests and the 4 browser journeys confirm that the main business flows work end to end on the running system: a timetable becomes classes on a teacher's calendar, a circular becomes a confirmed meeting, a reminder is recorded as sent, and an assigned task can be completed with its alerts resolved. The object-oriented design is what made this testable: because the domain classes contain no framework code, 68 unit tests check the business rules in 3.3 seconds without a database.
+
+\subsection{Clash Detection}
+The sweep-line detector agreed with the brute-force check on every random instance, and its advantage grew with size: 32 times faster at 500 events and 121 times faster at 4,000 events. This matches the expected $O(n \log n + k)$ against $O(n^2)$ behaviour. One faculty member has only a few hundred events per term, so both methods are fast enough for a single person; the gain matters when the clash check and free-slot finder run across a whole department. The timings come from one run per size on one laptop and should be read as indicative.
+
+\subsection{Initials Matching}
+The worked examples show a deliberate trade-off. Two three-letter initials that differ by one letter have a similarity of 0.667, below the threshold of 0.85, so fuzzy matching helps only with longer tokens such as names or aliases with a typo. For short initials the system relies on exact and alias matches and reports anything else to the HOD. A missed match can be fixed by adding an alias; a wrong match would put classes on the wrong teacher's calendar, so the design prefers the first.
+
+\subsection{Limitations Found During Testing}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.4cm}|Y|Y|}
+\caption{Limitations and planned fixes}\\
+\hline
+\textbf{Limitation} & \textbf{Observation} & \textbf{Planned fix} \\ \hline
+Reminder retry path & When a send fails, the dispatcher calls \texttt{retry()} while the reminder is still SENDING, which the state table does not allow. The failed reminder and the rest of its batch wait for stale recovery (5 minutes) instead of the designed back-off. Reminders are still sent at most once. & Move the reminder to FAILED before \texttt{retry()}; add a test with a notifier that fails. \\ \hline
+Re-confirming a timetable & Confirming the same timetable again creates duplicate class events, because earlier generated events are not replaced. & On confirmation, replace the previous upload's future class events, keyed by slot and date. \\ \hline
+Layering & Four application files import infrastructure classes directly. & Move OCR, parser and storage behind domain interfaces. \\ \hline
+No field pilot & OCR accuracy on real department circulars, time saved and user satisfaction were not measured. & Run a one-semester pilot in one department. \\ \hline
+Scanned timetables & Timetable PDFs without a text layer are rejected rather than read with OCR. & Add OCR for scanned timetable PDFs. \\ \hline
+\end{xltabular}
+
+\subsection{Comparison with the 2026 Literature}
+The timetabling papers surveyed in Section~\ref{sec:literature} focus on \emph{generating} timetables by optimisation or rules. FacultyDesk takes the timetable as given and focuses on \emph{distributing} it to individuals, combining it with meetings and tasks, and reminding people. The document-AI papers report that modern vision--language models can extract fields from scanned documents and that a multi-stage pipeline with preprocessing improves accuracy. FacultyDesk follows the multi-stage approach with classical Tesseract OCR, which runs on a department server without a GPU; replacing the extractor with a small vision--language model is a possible extension at a higher hardware cost.

@@ -1,0 +1,33 @@
+\begin{tikzpicture}[
+    pkg/.style={rectangle, draw, semithick, fill=#1, align=left, font=\scriptsize\sffamily, inner sep=5pt, text width=3.6cm, minimum height=1.6cm},
+    pkg/.default=white,
+    tab/.style={draw, semithick, fill=white, font=\footnotesize\bfseries, inner sep=2.5pt, anchor=south west},
+    imp/.style={semithick, dashed, -{Stealth[length=2.4mm]}},
+    bad/.style={semithick, dashed, black, -{Stealth[length=2.4mm]}},
+    lbl/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt}
+  ]
+  \newcommand{\pkgnode}[5]{\node[pkg=#4] (#1) at (#2) {#5}; \node[tab] at (#1.north west) {#3};}
+
+  \pkgnode{fe}{7.0,4.2}{frontend}{white}{app/ (pages)\\components/\\lib/ (api-client, auth, openapi types)}
+
+  \pkgnode{api}{2.6,0}{api}{white}{routers/ (auth, calendar,\\ circulars, tasks, timetable,\\ directory, reminders, metrics)\\deps.py (wiring)}
+  \pkgnode{workers}{11.4,0}{workers}{white}{celery\_app.py\\timetable\_tasks, circular\_tasks,\\reminder\_tasks, task\_alerts,\\calendar\_tasks, backup\_tasks}
+
+  \pkgnode{app}{7.0,-4.4}{application}{white}{auth/ directory/ timetable/\\circulars/ calendar/\\reminders/ tasks/ security/}
+
+  \pkgnode{infra}{12.6,-8.6}{infrastructure}{white}{db/ (models, repositories, UoW)\\parsers/ ocr/ notifiers/\\storage/ security/ seed/}
+
+  \pkgnode{dom}{7.0,-8.6}{domain}{white}{entities.py\\value\_objects.py\\events.py  errors.py\\repositories.py (interfaces)}
+
+  \pkgnode{core}{1.4,-8.6}{core}{white}{clock.py  config.py\\db.py  redis.py  logging.py\\security.py  upload\_guard.py}
+
+  \draw[imp] (fe.south) -- node[lbl, pos=0.4] {\guill{REST / OpenAPI}} (api.north);
+  \draw[imp] (api.south) -- node[lbl, sloped] {\guill{use}} (app.north west);
+  \draw[imp] (workers.south) -- node[lbl, sloped] {\guill{use}} (app.north east);
+  \draw[imp] (app) -- node[lbl] {\guill{use}} (dom);
+  \draw[imp] (infra) -- node[lbl] {\guill{implements}} (dom);
+  \draw[imp] (workers.south east) -- node[lbl, sloped] {\guill{wires}} (infra.north);
+  \draw[imp] (app.south west) -- node[lbl, sloped] {\guill{use}} (core.north east);
+  \draw[imp] (api.south) ++(-1.0,0) -- node[lbl] {\guill{use}} ([xshift=0.2cm]core.north);
+  \draw[bad] (app.east) -| node[lbl, pos=0.7, right, text=black, align=left] {direct import\\in 4 files} ([xshift=-1.2cm]infra.north);
+\end{tikzpicture}

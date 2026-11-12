@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant B as Celery Beat
+    participant W as Celery worker
+    participant D as ReminderDispatcher
+    participant DB as NotificationRepository
+    participant N as CompositeNotifier
+    participant E as E-mail / Web Push
+    B->>W: dispatch_due_notifications (every 30 s)
+    W->>D: dispatch_due(uow, batch_size=100)
+    D->>DB: claim_due_batch(now) FOR UPDATE SKIP LOCKED
+    DB-->>D: claimed rows [SENDING], attempts + 1
+    loop each claimed notification
+        D->>DB: load user, profile, event or task
+        alt task already done
+            D->>DB: cancel() [CANCELLED]
+        else
+            D->>N: send(notification, payload)
+            N->>E: deliver by channel
+            alt delivered
+                E-->>N: accepted
+                D->>DB: mark_sent() [SENT]
+            else delivery error
+                D->>DB: reschedule with back-off or mark_failed()
+            end
+        end
+    end

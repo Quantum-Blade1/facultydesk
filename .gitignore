@@ -62,3 +62,9 @@ Thumbs.db
 # Test reports
 test-results/
 playwright-report/
+
+# Report build outputs and local drafts
+report/latex/main.pdf
+report/latex/old/
+report/latex/results/puppeteer.json
+report/*.png

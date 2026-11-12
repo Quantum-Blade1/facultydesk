@@ -1,0 +1,94 @@
+{
+  "seed": 20261113,
+  "now_utc": "2026-11-13T04:30:00+00:00",
+  "python": "3.12.14",
+  "priority": [
+    {
+      "task": "IA marks upload",
+      "importance": 5,
+      "hours_to_deadline": 6.0,
+      "score": 0.9295
+    },
+    {
+      "task": "CO-PO mapping",
+      "importance": 4,
+      "hours_to_deadline": 48.0,
+      "score": 0.5207
+    },
+    {
+      "task": "Lab manual update",
+      "importance": 2,
+      "hours_to_deadline": 240.0,
+      "score": 0.104
+    },
+    {
+      "task": "Course file submission",
+      "importance": 3,
+      "hours_to_deadline": -36.0,
+      "score": 1.2143
+    }
+  ],
+  "similarity": [
+    {
+      "a": "KKS",
+      "b": "KKS",
+      "similarity": 1.0
+    },
+    {
+      "a": "KKS",
+      "b": "KSS",
+      "similarity": 0.6667
+    },
+    {
+      "a": "PARKAVI",
+      "b": "PARKAVY",
+      "similarity": 0.8571
+    },
+    {
+      "a": "RNS",
+      "b": "KKS",
+      "similarity": 0.3333
+    }
+  ],
+  "quiet_hours": {
+    "event_start_utc": "2026-11-14T04:30:00+00:00",
+    "raw_fire_utc": "2026-11-13T16:30:00+00:00",
+    "shifted_fire_utc": "2026-11-14T01:30:00+00:00"
+  },
+  "task_alerts": [
+    "2026-11-15T04:30:00+00:00",
+    "2026-11-17T04:30:00+00:00",
+    "2026-11-18T02:30:00+00:00"
+  ],
+  "ocr_confidence": 81.11,
+  "clash_benchmark": [
+    {
+      "n": 500,
+      "clash_pairs": 444,
+      "sweep_ms": 0.14,
+      "pairwise_ms": 4.53,
+      "results_identical": true
+    },
+    {
+      "n": 1000,
+      "clash_pairs": 1667,
+      "sweep_ms": 0.31,
+      "pairwise_ms": 25.78,
+      "results_identical": true
+    },
+    {
+      "n": 2000,
+      "clash_pairs": 6697,
+      "sweep_ms": 0.91,
+      "pairwise_ms": 74.34,
+      "results_identical": true
+    },
+    {
+      "n": 4000,
+      "clash_pairs": 26822,
+      "sweep_ms": 2.47,
+      "pairwise_ms": 299.06,
+      "results_identical": true
+    }
+  ]
+}

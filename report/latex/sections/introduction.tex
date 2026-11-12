@@ -1,0 +1,45 @@
+\newsection{Introduction}{sec:intro}
+
+\subsection{Background}
+A typical working week of a faculty member combines three kinds of commitments. \textbf{Classes} come from the department timetable, a spreadsheet grid in which each cell holds a course code, a section and the teacher's initials, for example \texttt{CN (KKS)}. \textbf{Meetings} are announced through paper circulars that are signed, scanned and pinned on the notice board or forwarded as a photo in a group chat. \textbf{Documentation work}, such as CO--PO (course outcome to programme outcome) mapping, IA marks upload, attendance shortage reports and lab manual updates, arrives as instructions with a deadline.
+
+\subsection{Existing System and its Limitations}
+In the current manual process each faculty member keeps track of these items personally.
+\begin{itemize}
+  \item \textbf{No single view.} Classes, meetings and deadlines live in three different places.
+  \item \textbf{No reminders.} The timetable, the notice board and the e-mail do not remind anyone.
+  \item \textbf{Clashes are found late.} A meeting called during a scheduled class is noticed only on the day.
+  \item \textbf{Revisions are missed.} When the timetable changes, every teacher has to read the new sheet again.
+  \item \textbf{No follow-up for documentation.} The HOD has to ask each person whether a task is done.
+  \item \textbf{Retyping.} General calendar apps require every class and meeting to be entered by hand.
+\end{itemize}
+
+\subsection{Proposed System}
+FacultyDesk reads the documents the department already produces instead of asking anyone to retype them.
+\begin{enumerate}
+  \item The HOD uploads the timetable file. The system parses it, matches initials to faculty accounts, shows a preview, and after confirmation generates every class of the term for every teacher.
+  \item Anyone uploads a photo or scan of a circular. OCR reads it and proposes a meeting with date, time, venue and attendees. The HOD reviews uncertain results and confirms.
+  \item Every faculty member sees classes, meetings and deadlines on one calendar with clash warnings, and can subscribe to it from Google Calendar or Apple Calendar through an iCalendar (ICS) feed [8].
+  \item Reminders arrive on the phone (web push) and by e-mail at chosen lead times, outside the user's quiet hours.
+  \item Documentation tasks are tracked with deadlines, a priority score, alerts and escalation to the HOD.
+\end{enumerate}
+
+\subsection{Technology Used}
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{4.2cm}|Y|}
+\caption{Technology stack}\\
+\hline
+\textbf{Layer} & \textbf{Technology} \\ \hline
+Backend & Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic migrations \\ \hline
+Background jobs & Celery 5 with Redis 7 (worker and Celery Beat scheduler) \\ \hline
+Database and files & PostgreSQL 16; MinIO (S3-compatible object storage) \\ \hline
+OCR and parsing & Tesseract OCR [6], OpenCV, pdfplumber, openpyxl, rapidfuzz \\ \hline
+Notifications & SMTP e-mail (aiosmtplib), Web Push with VAPID keys (pywebpush) \\ \hline
+Frontend & Next.js (App Router), TypeScript, Tailwind CSS, FullCalendar, installable PWA \\ \hline
+Security & Argon2id password hashing, JWT access tokens, rotating refresh cookies \\ \hline
+Quality & ruff, mypy (strict), pytest, Playwright end-to-end tests \\ \hline
+Deployment & Docker Compose, Caddy reverse proxy with HTTPS \\ \hline
+\end{xltabular}
+
+\subsection{Organisation of the Report}
+Section~\ref{sec:objectives} states the problem, objectives and requirements. Section~\ref{sec:overview} explains the object-oriented basics used, the eight modules of the project and the business aspects. Section~\ref{sec:uml} presents the UML models, each with theory, diagram, explanation and tables. Section~\ref{sec:ooad} covers the object-oriented analysis, design and architecture. Section~\ref{sec:impl} gives the core algorithms in pseudo code. Sections~\ref{sec:results} and \ref{sec:discussion} present and discuss the results, and Section~\ref{sec:conclusion} concludes. Section~\ref{sec:literature} lists the 2026 papers surveyed, with proof.

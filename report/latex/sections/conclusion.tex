@@ -1,0 +1,16 @@
+\newsection{Conclusion}{sec:conclusion}
+
+FacultyDesk shows that a department's existing documents, a timetable spreadsheet and photos of paper circulars, can be turned into a personal, clash-aware calendar with reminders for every faculty member, without anyone retyping information. The system covers eight modules: identity and access, directory and academic calendar, timetable ingestion, circular scanning, calendar, reminders, tasks with escalation, and operations.
+
+Object-oriented analysis and design shaped the whole project. Noun analysis of the problem statement produced twenty domain classes that hold their own rules, three of which enforce their life cycles as state machines. The UML models (use case, class, sequence, collaboration, statechart, activity, package, component and deployment diagrams) describe the system from the user's view down to the deployed containers, and every name in them matches the code. A four-layer architecture kept the business rules free of web, database and queue code, and the Repository, Unit of Work, Strategy, Factory, Composite and State patterns each solved a concrete problem: storage independence, atomic multi-object updates, new file formats and channels without changing existing code, and safe status changes.
+
+On 13 November 2026 all 83 backend tests and all 4 end-to-end journeys passed on the running system, and the sweep-line clash detector matched brute force exactly while running up to 121 times faster on 4,000 events.
+
+\subsection{Future Work}
+\begin{itemize}
+  \item Fix the reminder retry path and the duplicate classes on re-confirmation, with regression tests.
+  \item Run a pilot in one department to measure OCR accuracy on real circulars, reminder delivery and time saved for the HOD.
+  \item Read scanned timetable PDFs with OCR, and evaluate a small vision--language model for circular extraction.
+  \item Complete the layering by moving OCR, parsing and storage behind domain interfaces.
+  \item Add SMS or WhatsApp as a further notification channel through a new \texttt{Notifier} strategy.
+\end{itemize}

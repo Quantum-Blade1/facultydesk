@@ -1,0 +1,63 @@
+\newsection{Literature Survey Proofs}{sec:literature}
+
+Five papers published in 2026 that relate to FacultyDesk were surveyed: two on university timetabling and three on extracting information from scanned documents. Each entry below was checked on the paper's official page (the journal page or the arXiv page) on 13 November 2026. The title, authors, date and identifier are copied from that page, and a screenshot of the page is included as proof. The summaries are our own, written from the abstracts.
+
+\newcommand{\paperentry}[7]{%
+\needspace{7\baselineskip}
+\subsection{#1}
+\begin{xltabular}{\textwidth}{|p{3.2cm}|Y|}
+\hline
+\textbf{Authors} & #2 \\ \hline
+\textbf{Published} & #3 \\ \hline
+\textbf{Identifier} & #4 \\ \hline
+\textbf{Summary} & #5 \\ \hline
+\textbf{Relevance to FacultyDesk} & #6 \\ \hline
+\end{xltabular}
+\begin{figure}[H]
+\centering
+\fbox{\includegraphics[width=0.92\textwidth, trim=0 330 0 0, clip]{figures/papers/#7.png}}
+\caption{Proof: official page of ``#1''}
+\end{figure}}
+
+\paperentry{Automated University Timetabling: An AI Approach for Efficient Schedule Management}
+{Hassan Sharafuddin (Arab Open University, Kuwait)}
+{29 April 2026, \textit{International Journal of Emerging Technologies in Learning (iJET)}, vol. 21, no. 2, pp. 91--99}
+{DOI: \href{https://doi.org/10.3991/ijet.v21i02.59329}{10.3991/ijet.v21i02.59329}}
+{Describes Arab Open University's move from manual timetabling to a rule-based Python scheduling system serving about 62,000 students and over 1,000 staff across nine branches. The author reports timetable creation falling from four to six weeks to under two hours, 85\% fewer conflicts, and room utilisation rising from 65\% to 78\%, and argues that transparent rules suit institutions better than black-box optimisers.}
+{Supports our choice of transparent, explainable rules (initials tiers, review gate, priority formula). The paper builds timetables; FacultyDesk distributes them to each teacher.}
+{paper-ijet-59329}
+
+\paperentry{Course Timetabling under Conflict and Lecturer Preferences using Bi-objective Optimization Model}
+{Murat Elhüseyni}
+{Submitted 4 July 2026, arXiv (Optimization and Control)}
+{arXiv: \href{https://arxiv.org/abs/2607.03901}{2607.03901}}
+{Formulates a real course timetabling problem with lecturer rest periods and theory-before-practical precedence as a bi-objective mixed-integer linear program. On a real dataset it reduces course conflicts by 13.33\% and improves lecturer schedule compactness by 26\% compared with the actual timetable.}
+{Its notion of a conflict matches our half-open interval test for clash detection. It generates timetables, whereas FacultyDesk reads and distributes them.}
+{paper-arxiv-2607.03901}
+
+\paperentry{OCR or Not? Rethinking Document Information Extraction in the MLLMs Era with Real-World Large-Scale Datasets}
+{Jiyuan Shen, Peiyue Yuan, Atin Ghosh, Yifan Mai, Daniel Dahlmeier}
+{Submitted 3 March 2026, arXiv (Computation and Language)}
+{arXiv: \href{https://arxiv.org/abs/2603.02789}{2603.02789}}
+{Benchmarks multimodal large language models on business-document information extraction and finds that image-only input can perform comparably to pipelines that add OCR text, with careful schemas and instructions improving results.}
+{A possible future replacement for our Tesseract-plus-rules extractor, at the cost of GPU hardware.}
+{paper-arxiv-2603.02789}
+
+\paperentry{A Multistage Extraction Pipeline for Long Scanned Financial Documents: An Empirical Study in Industrial KYC Workflows}
+{Yuxuan Han, Yuanxing Zhang, Yushuo Wang, Yichao Jin, Kenneth Zhu Ke, Jingyuan Zhao}
+{Submitted 29 April 2026, arXiv (Computer Vision)}
+{arXiv: \href{https://arxiv.org/abs/2604.26462}{2604.26462}}
+{Proposes a multistage pipeline (image preprocessing, multilingual OCR, page retrieval and compact vision--language extraction) for long scanned KYC documents. On 120 production documents (about 3,000 pages) it beats direct PDF-to-model baselines by up to 31.9 percentage points; the best setup reaches 87.27\% field accuracy.}
+{Supports our design of preprocessing images before OCR and separating text extraction from field extraction.}
+{paper-arxiv-2604.26462}
+
+\paperentry{Operationalizing Document AI: A Microservice Architecture for OCR and LLM Pipelines in Production}
+{Yao Fehlis, Benjamin Bengfort, Zhangzhang Si, Vahid Eyorokon, Prema Roman, Patrick Deziel, Devon Slonaker, Steve Veldman, Ben Johnson, Joyce Rigelo, Michael Wharton, Steve Kramer}
+{Submitted 12 May 2026, arXiv (Artificial Intelligence)}
+{arXiv: \href{https://arxiv.org/abs/2605.18818}{2605.18818}}
+{Presents a microservice architecture for production document AI with classification, OCR and language-model field extraction, separating CPU orchestration from GPU inference and using asynchronous I/O. Profiling shows that OCR, not language-model parsing, dominates end-to-end latency.}
+{Matches our decision to run OCR asynchronously in Celery workers so that web requests return immediately with \texttt{202 Accepted}.}
+{paper-arxiv-2605.18818}
+
+\subsection*{Gap Addressed by FacultyDesk}
+The timetabling work optimises how a timetable is built, and the document-AI work improves how fields are read from scans. None of the surveyed papers addresses what happens after both: delivering one combined, clash-checked schedule to each faculty member with reliable reminders and documentation tracking. That is the part FacultyDesk covers.

@@ -1,0 +1,46 @@
+\begin{tikzpicture}[
+    art/.style={rectangle, draw, semithick, fill=white, font=\scriptsize, align=center, minimum width=2.9cm, minimum height=0.95cm},
+    path/.style={semithick},
+    l/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt, align=center}
+  ]
+  \newcommand{\umlnode}[5]{%
+    \draw[semithick, fill=white] (#1) rectangle ++(#2,-#3);
+    \draw[semithick] (#1) -- ++(0.3,0.3) -- ++(#2,0) -- ++(0,-#3) -- ++(-0.3,-0.3);
+    \draw[semithick] ($(#1)+(#2,0)$) -- ++(0.3,0.3);
+    \node[anchor=north west, font=\scriptsize, align=left, fill=white, inner sep=1pt] at ($(#1)+(0.1,-0.08)$) {\guill{#4}\\\textbf{#5}};}
+
+  \umlnode{0,0}{4.2}{3.0}{device}{Faculty phone / PC}
+  \node[art] at (2.1,-1.9) {\guill{artifact}\\Browser / installed PWA};
+
+  \umlnode{0,-4.2}{4.2}{2.8}{device}{External calendar client}
+  \node[art] at (2.1,-5.95) {Google / Apple Calendar};
+
+  \umlnode{5.6,1.2}{10.6}{11.8}{device}{Department server (Linux, Docker Engine)}
+  \node[art] (caddy) at (8.0,-1.2) {\guill{container}\\caddy : reverse proxy};
+  \node[art] (fe) at (11.4,-1.2) {\guill{container}\\frontend : Next.js};
+  \node[art] (be) at (14.6,-1.2) {\guill{container}\\backend : FastAPI};
+  \node[art] (wk) at (11.4,-4.0) {\guill{container}\\worker : Celery};
+  \node[art] (bt) at (8.0,-4.0) {\guill{container}\\beat : Celery Beat};
+  \node[art] (pg) at (14.6,-4.0) {\guill{container}\\postgres : PostgreSQL 16};
+  \node[art] (rd) at (8.0,-6.8) {\guill{container}\\redis : Redis 7};
+  \node[art] (mn) at (14.6,-6.8) {\guill{container}\\minio : object storage};
+  \node[art] (mp) at (11.4,-8.8) {\guill{container}\\mailpit (development only)};
+
+  \umlnode{0,-8.0}{4.2}{2.8}{external}{SMTP relay / Push service}
+  \node[art] (ext) at (2.1,-9.75) {E-mail and Web Push delivery};
+
+  \draw[path] (4.2,-1.05) -- node[l, above, pos=0.35] {HTTPS 443} ([yshift=1.5mm]caddy.west);
+  \draw[path] (4.2,-5.6) -- node[l, below, pos=0.5] {HTTPS (ICS)} (5.05,-5.6) -- (5.05,-1.35) -- ([yshift=-1.5mm]caddy.west);
+  \draw[path] (caddy) -- (fe);
+  \draw[path] (fe) -- (be);
+  \draw[path] (caddy.south) -- (8.0,-2.4) -| node[l, pos=0.25, below] {/api} (be.south);
+  \draw[path] (be) -- (pg);
+  \draw[path] (be.east) -- ++(0.35,0) |- (mn.east);
+  \draw[path] (wk) -- (pg);
+  \draw[path] (wk) -- (rd);
+  \draw[path] (wk) -- (mn);
+  \draw[path] (bt) -- (rd);
+  \draw[path] (be) -- node[l, sloped, above] {enqueue} (wk);
+  \draw[path] (wk) -- (mp);
+  \draw[path] (ext.east) -- node[l, above, pos=0.25] {SMTP / HTTPS} (9.7,-9.75) -- (9.7,-4.0) -- (wk.west);
+\end{tikzpicture}

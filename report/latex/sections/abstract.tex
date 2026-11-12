@@ -1,0 +1,12 @@
+\newsection{Abstract}{sec:abstract}
+
+Faculty members in an engineering department follow three separate sources of information: the department timetable for classes, paper circulars for meetings, and verbal or e-mail instructions for documentation work such as CO--PO mapping, internal assessment (IA) marks upload and lab manual updates. None of these sources reminds anyone, clashes between duties are found only when they happen, and the Head of the Department (HOD) has no single view of pending documentation.
+
+\textbf{FacultyDesk} is a web application that brings all three sources into one personal calendar for every faculty member. The HOD uploads the timetable file the department already produces (Excel, CSV or PDF); the system reads every cell, matches teacher initials such as \texttt{CN (KKS)} to faculty accounts and generates each person's weekly classes for the term, skipping holidays. Any faculty member can photograph a meeting circular; optical character recognition (OCR) extracts the date, time, venue and the faculty named in it, and uncertain results go to a review queue where the HOD confirms them. Confirmed meetings appear on every attendee's calendar with clash detection. Reminders are sent by e-mail and web push at times each user chooses, respect quiet hours, and are sent at most once per reminder. A task tracker ranks documentation work by a priority score, alerts before each deadline and escalates overdue work to the HOD.
+
+The system was designed using Object-Oriented Analysis and Design (OOAD). Twenty domain classes carry the business rules; three of them (\texttt{Circular}, \texttt{ScheduledNotification} and \texttt{TimetableUpload}) are explicit state machines. The code follows a four-layer architecture (domain, application, infrastructure, API) and applies the Repository, Unit of Work, Strategy, Factory, Composite and State design patterns. This report presents the business case, the object-oriented analysis, eleven kinds of UML and related diagrams with explanations and use case scenarios, the core algorithms in pseudo code, and the results.
+
+On 13 November 2026, all 83 automated backend tests and all 4 browser end-to-end tests passed on the running system. The sweep-line clash detector gave exactly the same results as a brute-force check on up to 4{,}000 events and was 121 times faster at that size.
+
+\vspace{0.5cm}
+\noindent\textbf{Keywords:} Object-oriented analysis and design, UML, use case, class diagram, design patterns, clean architecture, OCR, scheduling, reminders, academic administration.

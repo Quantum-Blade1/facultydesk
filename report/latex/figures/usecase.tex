@@ -1,0 +1,51 @@
+\begin{tikzpicture}[
+    uc/.style={ellipse, draw, semithick, fill=ucfill, minimum width=4.1cm, minimum height=1.05cm, align=center, font=\footnotesize, inner sep=1pt},
+    assoc/.style={semithick},
+    rel/.style={-{Stealth[length=2.2mm]}, dashed, semithick},
+    lbl/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt}
+  ]
+  \draw[semithick, rounded corners=3pt, fill=sysfill] (2.55,-0.4) rectangle (13.75,19.1);
+  \node[font=\bfseries] at (8.15,18.7) {FacultyDesk};
+
+  \node[uc] (login) at (5.0,17.6) {Log in};
+  \node[uc] (terms) at (5.0,16.1) {Manage terms\\and holidays};
+  \node[uc] (dir) at (5.0,14.6) {Manage faculty\\directory};
+  \node[uc] (uptt) at (5.0,13.1) {Upload timetable};
+  \node[uc] (conftt) at (5.0,11.6) {Confirm timetable};
+  \node[uc] (review) at (5.0,10.1) {Review circular};
+  \node[uc] (assign) at (5.0,8.6) {Assign department\\tasks};
+  \node[uc] (upcirc) at (5.0,7.1) {Upload circular};
+  \node[uc] (cal) at (5.0,5.6) {View personal\\calendar};
+  \node[uc] (tasks) at (5.0,4.1) {Manage own tasks};
+  \node[uc] (prefs) at (5.0,2.6) {Set reminder rules\\and quiet hours};
+  \node[uc] (ics) at (5.0,1.1) {Subscribe to\\ICS feed};
+
+  \node[uc] (resolve) at (11.2,13.1) {Resolve faculty\\initials};
+  \node[uc] (gen) at (11.2,11.6) {Generate weekly\\class events};
+  \node[uc] (ocr) at (11.2,7.1) {Extract meeting\\fields by OCR};
+  \node[uc] (free) at (11.2,5.6) {Find common\\free slots};
+  \node[uc] (send) at (11.2,3.6) {Send reminders};
+  \node[uc] (esc) at (11.2,2.2) {Escalate overdue\\tasks};
+  \node[uc] (backup) at (11.2,0.8) {Back up\\database};
+
+  \pic at (0.6,15.3) {actor={Admin}};
+  \pic at (0.6,9.9) {actor={HOD}};
+  \pic at (0.6,3.4) {actor={Faculty}};
+  \pic at (15.6,2.4) {actor={Scheduler}};
+
+  \coordinate (adm) at (1.05,15.75);
+  \coordinate (hod) at (1.05,10.35);
+  \coordinate (fac) at (1.05,3.85);
+  \coordinate (sch) at (15.15,2.85);
+
+  \foreach \u in {login,terms,dir,uptt} \draw[assoc] (adm) -- (\u.west);
+  \foreach \u in {login,dir,uptt,conftt,review,assign,upcirc,cal} \draw[assoc] (hod) -- (\u.west);
+  \foreach \u in {login,upcirc,cal,tasks,prefs,ics} \draw[assoc] (fac) -- (\u.west);
+  \foreach \u in {send,esc,backup} \draw[assoc] (sch) -- (\u.east);
+
+  \draw[rel] (uptt) -- node[lbl, above] {\guill{include}} (resolve);
+  \draw[rel] (conftt) -- node[lbl, above] {\guill{include}} (gen);
+  \draw[rel] (upcirc) -- node[lbl, above] {\guill{include}} (ocr);
+  \draw[rel] (review.east) -- (7.9,10.1) -- node[lbl, right] {\guill{extend}} (7.9,7.6) -- (upcirc.25);
+  \draw[rel] (free) -- node[lbl, above] {\guill{extend}} (cal);
+\end{tikzpicture}

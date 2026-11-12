@@ -1,0 +1,114 @@
+\documentclass[12pt,a4paper]{article}
+
+\newcommand{\studentname}{Krish Kumar Sharma}
+\newcommand{\studentusn}{1MS25CS408}
+\newcommand{\studentsec}{5 `C'}
+\newcommand{\projecttitle}{FacultyDesk: A Scheduling, Reminder and Task Management System for College Faculty}
+
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage[a4paper,top=2.6cm,bottom=2.6cm,left=2.6cm,right=2.4cm,footskip=1.1cm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{array,tabularx,longtable,multirow,makecell,xltabular}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{eso-pic}
+\usepackage{tocloft}
+\usepackage{needspace}
+\usepackage{ragged2e}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,shapes.multipart,arrows.meta,positioning,fit,calc,backgrounds}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{ucfill}{HTML}{FFFFFF}
+\definecolor{sysfill}{HTML}{FFFFFF}
+\definecolor{classfill}{HTML}{FFFFFF}
+\definecolor{objfill}{HTML}{FFFFFF}
+\definecolor{actfill}{HTML}{FFFFFF}
+\definecolor{decfill}{HTML}{FFFFFF}
+\definecolor{statefill}{HTML}{FFFFFF}
+
+\AddToShipoutPictureBG{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \draw[line width=0.6pt] ([xshift=1.4cm,yshift=1.3cm]current page.south west) rectangle ([xshift=-1.4cm,yshift=-1.3cm]current page.north east);
+  \end{tikzpicture}}
+
+\newcommand{\guill}[1]{<{}<#1>{}>}
+
+\tikzset{
+  every picture/.append style={/utils/exec={\sffamily}},
+  actor/.pic={
+    \draw[semithick] (0,0.75) circle (0.2);
+    \draw[semithick] (0,0.55) -- (0,0.05);
+    \draw[semithick] (-0.3,0.4) -- (0.3,0.4);
+    \draw[semithick] (0,0.05) -- (-0.25,-0.35);
+    \draw[semithick] (0,0.05) -- (0.25,-0.35);
+    \node[below, font=\footnotesize] at (0,-0.35) {#1};
+  },
+  umlclass/.style={rectangle split, rectangle split parts=3, draw, semithick, fill=white,
+    font=\scriptsize, text width=3.75cm, align=left, inner sep=3pt},
+  state/.style={rectangle, rounded corners=7pt, draw, semithick, fill=white, font=\scriptsize,
+    minimum height=0.8cm, minimum width=2.2cm, inner xsep=4pt},
+  initial/.style={circle, fill=black, minimum size=3.2mm, inner sep=0pt},
+  final/.style={circle, draw, semithick, minimum size=4.2mm, inner sep=0pt, path picture={\fill (path picture bounding box.center) circle (1.2mm);}}
+}
+\newcommand{\umlclass}[5]{\node[umlclass] (#1) at (#2) {\hfil\textbf{#3}\hfil\nodepart{second}#4\nodepart{third}#5};}
+\input{figures/states}
+
+\titleformat{\section}{\fontsize{16}{20}\selectfont\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\fontsize{14}{17}\selectfont\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{0pt}{14pt}
+\titlespacing*{\subsection}{0pt}{14pt}{8pt}
+\newcommand{\theory}[1]{\par\medskip\needspace{4\baselineskip}\noindent\textbf{\textit{#1}}\par\smallskip}
+\newcommand{\head}[1]{\par\medskip\needspace{4\baselineskip}\noindent\textbf{#1}\par\smallskip}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{2.5em}
+\setlength{\parindent}{0pt}
+\linespread{1.12}
+\captionsetup{labelsep=colon, font=normalsize}
+\renewcommand{\arraystretch}{1.3}
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\setlist{itemsep=2pt, topsep=4pt}
+
+\renewcommand{\cftsecfont}{\bfseries}
+\renewcommand{\cftsecpagefont}{\bfseries}
+\renewcommand{\cftsecleader}{\hfill}
+\renewcommand{\cftsubsecleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftbeforesecskip}{10pt}
+\setlength{\cftbeforesubsecskip}{4pt}
+\renewcommand{\cfttoctitlefont}{\fontsize{16}{20}\selectfont\bfseries}
+\renewcommand{\cftloftitlefont}{\fontsize{16}{20}\selectfont\bfseries}
+\renewcommand{\cftlottitlefont}{\fontsize{16}{20}\selectfont\bfseries}
+\renewcommand{\contentsname}{Table of Contents}
+\renewcommand{\listfigurename}{List of Figures}
+\renewcommand{\listtablename}{List of Tables}
+\setcounter{tocdepth}{2}
+
+\newcommand{\newsection}[2]{\clearpage\section{#1}\label{#2}}
+
+\begin{document}
+\justifying
+\sloppy
+
+\input{frontmatter}
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/objectives}
+\input{sections/overview}
+\input{sections/uml}
+\input{sections/ooad}
+\input{sections/implementation}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/conclusion}
+\input{sections/references}
+\input{sections/literature}
+
+\end{document}

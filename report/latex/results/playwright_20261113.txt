@@ -1,0 +1,10 @@
+$ playwright test
+
+Running 4 tests using 1 worker
+
+  ✓  1 [chromium] › e2e/01-timetable-classes.spec.ts:6:7 › Journey 1: Timetable Ingestion & Class Generation › HOD uploads standard timetable, confirms, and faculty calendar displays classes (3.7s)
+  ✓  2 [chromium] › e2e/02-circular-meeting.spec.ts:6:7 › Journey 2: Circular OCR Review Queue & Meeting Confirmation › Faculty uploads circular sample, HOD reviews & confirms, attendees see meeting on calendar (5.0s)
+  ✓  3 [chromium] › e2e/03-meeting-reminder-sent.spec.ts:5:7 › Journey 3: Meeting Reminder Exactly-Once Delivery › A meeting scheduled ahead produces a notification record marked SENT (561ms)
+  ✓  4 [chromium] › e2e/04-task-completion-alerts.spec.ts:5:7 › Journey 4: Department Task Assignment & Faculty Completion › HOD assigns template task, faculty completes it, alerts are resolved (2.2s)
+
+  4 passed (12.9s)

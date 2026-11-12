@@ -1,0 +1,58 @@
+\begin{tikzpicture}[
+    act/.style={rectangle, rounded corners=6pt, draw, semithick, fill=actfill, text width=3.7cm, align=center, font=\footnotesize, minimum height=0.85cm},
+    dec/.style={diamond, draw, semithick, fill=decfill, aspect=2.2, font=\scriptsize, inner sep=1pt, align=center},
+    fl/.style={semithick, -{Stealth[length=2.2mm]}},
+    g/.style={font=\scriptsize, fill=white, inner sep=1pt}
+  ]
+  \def\lanew{5.4}
+  \foreach \i/\name in {0/HOD or Admin, 1/API server, 2/Celery worker} {
+    \draw[semithick] (\i*\lanew,0.6) rectangle ++(\lanew,-23.8);
+    \node[font=\bfseries\small] at (\i*\lanew+\lanew/2,0.15) {\name};
+  }
+  \draw[semithick] (0,-0.25) -- (3*\lanew,-0.25);
+
+  \node[initial] (s) at (2.7,-0.9) {};
+  \node[act] (sel) at (2.7,-2.0) {Choose term and timetable file (xlsx, csv, pdf)};
+  \node[act] (val) at (8.1,-2.0) {Check size, magic bytes and type (UploadGuard)};
+  \node[dec] (ok) at (8.1,-3.8) {valid?};
+  \node[act] (rej) at (2.7,-3.8) {See rejection message};
+  \node[final] (e0) at (2.7,-5.0) {};
+  \node[act] (store) at (8.1,-5.8) {Store file in MinIO, save upload as UPLOADED, enqueue job};
+
+  \node[act] (fac) at (13.5,-5.8) {Factory picks parser by sniffed MIME type};
+  \node[act] (parse) at (13.5,-7.6) {Parse grid; expand merged period cells};
+  \node[act] (tok) at (13.5,-9.7) {Tokenise cells into course, section, room, initials; split co-teachers};
+  \node[act] (res) at (13.5,-12.0) {Resolve initials: exact, then alias, then fuzzy ($s\ge0.85$, margin $\ge0.10$)};
+  \node[act] (prev) at (13.5,-14.3) {Build preview and issue report; status PREVIEW\_READY};
+
+  \node[act] (look) at (2.7,-14.3) {Review preview and unresolved tokens};
+  \node[dec] (good) at (2.7,-16.3) {issues?};
+  \node[act] (fix) at (2.7,-18.3) {Fix directory aliases or file};
+  \node[act] (conf) at (8.1,-16.3) {Save courses, sections, rooms, slots; status CONFIRMED};
+
+  \node[act] (exp) at (13.5,-18.3) {Expand weekly recurrence over the term, skip holidays};
+  \node[act] (ev) at (13.5,-20.2) {Create CLASS events and attendees};
+  \node[act] (rem) at (13.5,-22.1) {Plan reminders with idempotency keys};
+  \node[final] (e1) at (8.1,-22.1) {};
+
+  \draw[fl] (s) -- (sel);
+  \draw[fl] (sel) -- (val);
+  \draw[fl] (val) -- (ok);
+  \draw[fl] (ok) -- node[g, above] {[no]} (rej);
+  \draw[fl] (rej) -- (e0);
+  \draw[fl] (ok) -- node[g, right] {[yes]} (store);
+  \draw[fl] (store) -- (fac);
+  \draw[fl] (fac) -- (parse);
+  \draw[fl] (parse) -- (tok);
+  \draw[fl] (tok) -- (res);
+  \draw[fl] (res) -- (prev);
+  \draw[fl] (prev) -- (look);
+  \draw[fl] (look) -- (good);
+  \draw[fl] (good) -- node[g, right] {[yes]} (fix);
+  \draw[fl] (fix.west) -- ++(-0.35,0) |- (sel.west);
+  \draw[fl] (good) -- node[g, above] {[no]} (conf);
+  \draw[fl] (conf.east) -| (exp.north);
+  \draw[fl] (exp) -- (ev);
+  \draw[fl] (ev) -- (rem);
+  \draw[fl] (rem) -- (e1);
+\end{tikzpicture}

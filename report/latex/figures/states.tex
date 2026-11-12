@@ -1,0 +1,69 @@
+\tikzset{
+  tr/.style={semithick, -{Stealth[length=2.2mm]}},
+  slbl/.style={font=\scriptsize, inner sep=1.5pt, align=center}
+}
+
+\newcommand{\circularstate}{%
+\begin{tikzpicture}
+  \node[initial] (i) at (0,0) {};
+  \node[state] (up) at (2.2,0) {UPLOADED};
+  \node[state] (pr) at (7.4,0) {PROCESSING};
+  \node[state] (nr) at (12.8,1.8) {NEEDS\_REVIEW};
+  \node[state] (fa) at (7.4,-2.8) {FAILED};
+  \node[state] (co) at (18.0,1.8) {CONFIRMED};
+  \node[state] (re) at (18.0,-1.4) {REJECTED};
+  \node[final] (f1) at (20.2,1.8) {};
+  \node[final] (f2) at (20.2,-1.4) {};
+  \draw[tr] (i) -- (up);
+  \draw[tr] (up) -- node[slbl, above] {start\_processing()} (pr);
+  \draw[tr] (pr.north east) -- node[slbl, above left, pos=0.55] {mark\_needs\_review()} (nr.west);
+  \draw[tr] (pr.east) -- node[slbl, below right, pos=0.38] {confirm()\\ {[passes gate and auto-confirm on]}} (co.south west);
+  \draw[tr] ([xshift=-4mm]pr.south) -- node[slbl, left] {fail(reason)} ([xshift=-4mm]fa.north);
+  \draw[tr] ([xshift=4mm]fa.north) -- node[slbl, right] {start\_processing()} ([xshift=4mm]pr.south);
+  \draw[tr] (nr) -- node[slbl, above] {confirm()} (co);
+  \draw[tr] (nr.south east) -- node[slbl, below left, pos=0.6] {reject(reason)} (re.west);
+  \draw[tr] (co) -- (f1);
+  \draw[tr] (re) -- (f2);
+\end{tikzpicture}}
+
+\newcommand{\notificationstate}{%
+\begin{tikzpicture}
+  \node[initial] (i) at (0,0) {};
+  \node[state] (pe) at (2.4,0) {PENDING};
+  \node[state] (se) at (8.4,0) {SENDING};
+  \node[state] (sent) at (13.6,0) {SENT};
+  \node[state] (fa) at (8.4,-3.0) {FAILED};
+  \node[state] (ca) at (2.4,-3.0) {CANCELLED};
+  \node[final] (f1) at (15.8,0) {};
+  \node[final] (f2) at (2.4,-4.8) {};
+  \draw[tr] (i) -- (pe);
+  \draw[tr] (pe) -- node[slbl, above] {mark\_sending()\\attempts += 1} (se);
+  \draw[tr] (se) -- node[slbl, above] {mark\_sent()} (sent);
+  \draw[tr, dashed] (se.north) -- ++(0,0.9) -| node[slbl, pos=0.25, above] {stale recovery: SENDING for over 5 min (SQL update)} (pe.north);
+  \draw[tr] (se) -- node[slbl, right] {mark\_failed(error)} (fa);
+  \draw[tr] (fa.west) -- node[slbl, below] {retry() [attempts $<$ 5]} ++(-2.6,0) |- ([yshift=-2.5mm]pe.east);
+  \draw[tr] (pe) -- node[slbl, left] {cancel()} (ca);
+  \draw[tr] (sent) -- (f1);
+  \draw[tr] (ca) -- (f2);
+\end{tikzpicture}}
+
+\newcommand{\uploadstate}{%
+\begin{tikzpicture}
+  \node[initial] (i) at (0,0) {};
+  \node[state] (up) at (2.2,0) {UPLOADED};
+  \node[state] (pa) at (7.0,0) {PARSING};
+  \node[state] (pv) at (12.4,0) {PREVIEW\_READY};
+  \node[state] (co) at (17.6,0) {CONFIRMED};
+  \node[state] (fa) at (9.7,-2.8) {FAILED};
+  \node[final] (f1) at (19.8,0) {};
+  \node[final] (f2) at (12.4,-2.8) {};
+  \draw[tr] (i) -- (up);
+  \draw[tr] (up) -- node[slbl, above] {start\_parsing()} (pa);
+  \draw[tr] (pa) -- node[slbl, above] {mark\_preview\_ready()} (pv);
+  \draw[tr] (pv) -- node[slbl, above] {confirm()} (co);
+  \draw[tr] (up.south) |- node[slbl, pos=0.75, below] {fail(reason)} (fa.west);
+  \draw[tr] (pa.south) -- node[slbl, left, pos=0.5] {fail(reason)} (fa.north west);
+  \draw[tr] (pv.south) -- node[slbl, right, pos=0.5] {fail(reason)} (fa.north east);
+  \draw[tr] (fa) -- (f2);
+  \draw[tr] (co) -- (f1);
+\end{tikzpicture}}

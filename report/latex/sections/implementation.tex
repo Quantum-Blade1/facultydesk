@@ -1,0 +1,133 @@
+\newsection{Implementation (Algorithms Pseudo Code)}{sec:impl}
+
+\subsection{Implementation Overview}
+The backend has 76 Python source files and the frontend has eight main screens. Table~\ref{tab:files} maps each module to its main source files. The algorithms below are written from the code; each names the file it comes from. All times are in UTC unless marked local.
+
+{\small
+\needspace{7\baselineskip}
+\begin{xltabular}{\textwidth}{|p{3.2cm}|Y|p{2.4cm}|}
+\caption{Modules and source files}\label{tab:files}\\
+\hline
+\textbf{Module} & \textbf{Main source files (backend/app/)} & \textbf{Screen} \\ \hline
+Identity and access & application/auth/*, application/security/policy.py, infrastructure/security/rate\_limiter.py & /login \\ \hline
+Directory & application/directory/*, api/routers/directory.py & /directory \\ \hline
+Timetable & application/timetable/*, infrastructure/parsers/* & /timetables \\ \hline
+Circulars & application/circulars/use\_cases.py, infrastructure/ocr/* & /circulars \\ \hline
+Calendar & application/calendar/* (clash\_detector, free\_slots, recurrence, ics\_service) & /calendar, /today \\ \hline
+Reminders & application/reminders/* (planner, dispatcher, maths), infrastructure/notifiers/* & /settings \\ \hline
+Tasks & application/tasks/*, workers/task\_alerts.py & /tasks \\ \hline
+Operations & core/upload\_guard.py, infrastructure/storage/backup\_service.py & -- \\ \hline
+\end{xltabular}}
+
+\subsection{Algorithm 1: Three-Tier Initials Resolution}
+A timetable cell such as \texttt{CN (KKS)} names the teacher by initials. The resolver tries an exact match, then an alias, and only then a fuzzy match based on the Levenshtein edit distance [7]. A fuzzy match is accepted only if it is clearly better than the second-best candidate, so the system never guesses between two similar teachers.
+\begin{algorithm}[H]
+\caption{Three-tier initials resolution (infrastructure/parsers/initials\_resolver.py)}
+\begin{algorithmic}[1]
+\Require token $t$, faculty profiles $F$; $\theta_{sim}=0.85$, $\theta_{margin}=0.10$
+\State $t \gets \textsc{Upper}(\textsc{Trim}(t))$
+\State $E \gets \{f \in F : f.\text{initials} = t\}$ \Comment{tier 1: exact initials}
+\If{$|E| = 1$} \Return \textsc{Resolved}$(E_1)$ \ElsIf{$|E| > 1$} \Return \textsc{Ambiguous} \EndIf
+\State $A \gets \{f \in F : t \in f.\text{aliases}\}$ \Comment{tier 2: exact alias}
+\If{$|A| = 1$} \Return \textsc{Resolved}$(A_1)$ \ElsIf{$|A| > 1$} \Return \textsc{Ambiguous} \EndIf
+\ForAll{$f \in F$} \Comment{tier 3: normalised similarity}
+  \State $s_f \gets 1 - \textsc{Lev}(t, f.\text{initials}) / \max(|t|, |f.\text{initials}|)$
+\EndFor
+\State $s_1, s_2 \gets$ best and second-best scores
+\If{$s_1 \ge \theta_{sim}$ \textbf{and} $s_1 - s_2 \ge \theta_{margin}$} \Return \textsc{Resolved}$(F_1)$ \EndIf
+\State \Return \textsc{Unresolved} \Comment{shown to the HOD}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 2: Sweep-Line Clash Detection}
+Two events clash if their half-open intervals overlap: $\max(s_1, s_2) < \min(e_1, e_2)$. Events that only touch (one ends at 10:00, the next starts at 10:00) do not clash. Sorting by start time and keeping the currently open events in a min-heap finds all clashes in $O(n \log n + k)$ time for $k$ clashing pairs, instead of comparing every pair in $O(n^2)$.
+\begin{algorithm}[H]
+\caption{Sweep-line clash detection (application/calendar/clash\_detector.py)}
+\begin{algorithmic}[1]
+\Require intervals $I = \{[s_i, e_i)\}$
+\State sort $I$ by $(s, e)$; $H \gets$ empty min-heap keyed by end time; $C \gets \emptyset$
+\ForAll{$x \in I$ in sorted order}
+  \While{$H \ne \emptyset$ \textbf{and} $\textsc{Min}(H).e \le x.s$} \State \textsc{Pop}$(H)$ \EndWhile
+  \ForAll{$y \in H$} \State $C \gets C \cup \{(y, x)\}$ \EndFor
+  \State \textsc{Push}$(H, x)$
+\EndFor
+\State \Return $C$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 3: Weekly Class Generation}
+Each confirmed timetable slot is expanded week by week inside the term and the current 21-day window. Holidays are skipped, and times are built in the term's local time zone before conversion to UTC.
+\begin{algorithm}[H]
+\caption{Class generation for one slot (application/calendar/recurrence.py)}
+\begin{algorithmic}[1]
+\Require slot (weekday, start, end), term $[d_0, d_1]$, holidays $D_h$, window $[w_0, w_1]$
+\State $a \gets \max(d_0, w_0)$; $b \gets \min(d_1, w_1)$; \textbf{if} $a > b$ \textbf{return} $\emptyset$
+\ForAll{date $d \in \textsc{WeeklyRule}(a, b, \text{weekday})$}
+  \If{$d \notin D_h$}
+    \State $s \gets \textsc{ToUTC}(d + \text{start})$; $e \gets \textsc{ToUTC}(d + \text{end})$ \Comment{local $\rightarrow$ UTC}
+    \State emit occurrence $(d, s, e)$
+  \EndIf
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 4: Reminder Planning with Quiet Hours}
+For each attendee, lead time and channel, the fire time is the event start minus the lead time. If that falls inside the user's quiet window, the reminder moves to the end of the window, unless the event starts before the window ends (an early-morning class), in which case it is kept. A SHA-256 key makes planning repeatable without duplicates.
+\begin{algorithm}[H]
+\caption{Reminder planning (application/reminders/planner.py, maths.py)}
+\begin{algorithmic}[1]
+\Require event $E$; per-user rule (offsets $O$, channels $K$) or the default for $E.\text{kind}$
+\ForAll{attendee user $u$, offset $o \in O$, channel $c \in K$}
+  \State $f \gets E.s - o$
+  \If{local time of $f$ lies in $u$'s quiet window $[q_s, q_e)$}
+    \State $w \gets$ end of that window in UTC (next day if the window crosses midnight)
+    \If{$E.s > w$} $f \gets w$ \EndIf
+  \EndIf
+  \State $k \gets \mathrm{SHA256}(E.\text{id} \,\|\, u \,\|\, o \,\|\, c)$
+  \If{no notification with key $k$ exists} save a PENDING notification $(u, c, f, k)$ \EndIf
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 5: Reminder Dispatch}
+Every 30 seconds the dispatcher claims a batch of due reminders under a row lock that other workers skip, and sends each one. Failed sends are designed to be retried after a random delay up to $\min(1800, 30 \cdot 2^{n})$ seconds (full-jitter back-off).
+\begin{algorithm}[H]
+\caption{Reminder dispatch (application/reminders/dispatcher.py)}
+\begin{algorithmic}[1]
+\State \textbf{transaction:} claim up to 100 rows with status PENDING and fire time $\le$ now \texttt{FOR UPDATE SKIP LOCKED}; mark them SENDING; attempts $+{=}\,1$
+\ForAll{claimed notification $n$}
+  \If{target task is already done} \textsc{Cancel}$(n)$; \textbf{continue} \EndIf
+  \If{\textsc{Send}$(n)$ succeeds} \textsc{MarkSent}$(n)$
+  \Else
+    \State $\delta \gets \textsc{Uniform}(0, \min(1800, 30 \cdot 2^{\text{attempts}}))$
+    \If{attempts $< 5$} reschedule $n$ at now $+ \delta$ \Else\ \textsc{MarkFailed}$(n)$ \EndIf
+  \EndIf
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 6: Task Priority Score}
+Each active task gets a score between 0 and 1 that balances importance and urgency; urgency decays exponentially with the hours left, with a time constant of 48 hours. Overdue tasks score between 1 and 2, so they always rank first, and completed tasks score $-1$.
+\begin{algorithm}[H]
+\caption{Task priority score (application/tasks/maths.py)}
+\begin{algorithmic}[1]
+\Require importance $I \in \{1..5\}$, deadline $D$, now $T$; $w_I = 0.4$, $w_U = 0.6$, $\tau = 48$ h
+\If{task is completed} \Return $-1$ \EndIf
+\State $h \gets (D - T)$ in hours
+\If{$h \le 0$} \Return $1 + \min(|h|/24, 7)/7$ \EndIf
+\State \Return $w_I \cdot (I-1)/4 + w_U \cdot e^{-h/\tau}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 7: Circular Review Gate}
+The OCR confidence of a document is the length-weighted mean of its word confidences, $C = \sum \ell_i c_i / \sum \ell_i$, so long words count more than short ones. A circular is confirmed automatically only if every condition below holds.
+\begin{algorithm}[H]
+\caption{Circular review gate (infrastructure/ocr/extractor.py)}
+\begin{algorithmic}[1]
+\Require document confidence $C$, field confidences $C_{date}$, $C_{time}$, attendees $A$
+\If{$C \ge 70$ \textbf{and} $C_{date} \ge 0.85$ \textbf{and} $C_{time} \ge 0.85$ \textbf{and} $|A| \ge 1$ \textbf{and} $\forall a \in A: C_a \ge 0.85$ \textbf{and not} duplicate}
+  \If{department allows automatic confirmation} \Return CONFIRMED \EndIf
+\EndIf
+\State \Return NEEDS\_REVIEW (with the list of reasons)
+\end{algorithmic}
+\end{algorithm}

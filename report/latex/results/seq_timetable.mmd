@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor HOD as HOD
+    participant R as TimetableRouter
+    participant U as UploadTimetableUseCase
+    participant S as MinIO storage
+    participant W as Celery worker
+    participant P as ParseTimetableUseCase
+    participant C as ConfirmTimetableUseCase
+    participant M as MaterialiseTimetableEventsUseCase
+    HOD->>R: POST /api/timetables/upload (file, term)
+    R->>U: execute(file, department, term)
+    U->>S: store file under random key
+    U-->>R: TimetableUpload [UPLOADED]
+    R->>W: process_timetable_upload(upload_id)
+    R-->>HOD: 202 Accepted
+    W->>P: execute(upload_id)
+    P->>P: factory picks parser, parse grid
+    P->>P: resolve initials (exact, alias, fuzzy)
+    P-->>W: preview and issue report [PREVIEW_READY]
+    HOD->>R: GET /api/timetables/{id}
+    R-->>HOD: preview slots, unresolved tokens
+    HOD->>R: POST /api/timetables/{id}/confirm
+    R->>C: execute(upload_id)
+    C->>C: save courses, sections, rooms, slots [CONFIRMED]
+    C-->>R: TimetableConfirmed event
+    R-->>HOD: 200 OK
+    W->>M: materialise term (21-day window)
+    loop each slot and each non-holiday date
+        M->>M: create CLASS event and attendee
+        M->>M: plan reminders (idempotency key)
+    end
